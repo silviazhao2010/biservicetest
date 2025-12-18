@@ -11,6 +11,8 @@ interface ComponentWrapperProps {
   onSelect: () => void
   onUpdate: (updates: Partial<ComponentConfig>) => void
   onDelete: () => void
+  allComponents?: ComponentConfig[]
+  getComponentValue?: (componentId: string, field?: string) => any
 }
 
 const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
@@ -19,6 +21,8 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   onSelect,
   onUpdate,
   onDelete,
+  allComponents = [],
+  getComponentValue,
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
 
@@ -96,7 +100,11 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
           )
         }
       >
-        <ChartComponent component={component} />
+        <ChartComponent 
+          component={component} 
+          allComponents={allComponents}
+          getComponentValue={getComponentValue}
+        />
       </Card>
     </div>
   )

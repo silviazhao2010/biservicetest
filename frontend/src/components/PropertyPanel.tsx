@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space } from 'antd'
+import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Switch, Radio } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
-import type { ComponentConfig, Dataset, DataTable, ComponentRelation } from '../types'
+import type { ComponentConfig, Dataset, DataTable, ComponentRelation, ConditionalDataSource, DataSourceCondition } from '../types'
 
 interface PropertyPanelProps {
   component: ComponentConfig | null
@@ -125,23 +125,328 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
 
   const currentTable = tables.find(t => t.table_name === component.dataSource.tableName)
   const availableFields = currentTable?.schema_info.fields || []
+  const useConditionalSource = component.dataSource.type === 'conditional'
+
+  const handleDataSourceTypeChange = (type: 'table' | 'conditional') => {
+    if (type === 'conditional') {
+      onUpdateComponent({
+        dataSource: {
+          type: 'conditional',
+          fields: component.dataSource.fields || {},
+          conditionalSources: [],
+          defaultSource: {
+            datasetId: component.dataSource.datasetId || 0,
+            tableName: component.dataSource.tableName,
+          },
+        },
+      })
+    } else {
+      onUpdateComponent({
+        dataSource: {
+          type: 'table',
+          datasetId: component.dataSource.defaultSource?.datasetId || component.dataSource.datasetId || 0,
+          tableName: component.dataSource.defaultSource?.tableName || component.dataSource.tableName,
+          fields: component.dataSource.fields || {},
+        },
+      })
+    }
+  }
+
+  const handleAddConditionalSource = () => {
+    const newCondition: ConditionalDataSource = {
+      condition: {
+        operator: '=',
+        valueType: 'static',
+      },
+      datasetId: 0,
+    }
+    onUpdateComponent({
+      dataSource: {
+        ...component.dataSource,
+        conditionalSources: [
+          ...(component.dataSource.conditionalSources || []),
+          newCondition,
+        ],
+      },
+    })
+  }
+
+  const handleRemoveConditionalSource = (index: number) => {
+    const newSources = [...(component.dataSource.conditionalSources || [])]
+    newSources.splice(index, 1)
+    onUpdateComponent({
+      dataSource: {
+        ...component.dataSource,
+        conditionalSources: newSources,
+      },
+    })
+  }
+
+  const handleUpdateConditionalSource = (index: number, updates: Partial<ConditionalDataSource>) => {
+    const newSources = [...(component.dataSource.conditionalSources || [])]
+    newSources[index] = { ...newSources[index], ...updates }
+    onUpdateComponent({
+      dataSource: {
+        ...component.dataSource,
+        conditionalSources: newSources,
+      },
+    })
+  }
+
+  const handleUpdateCondition = (sourceIndex: number, conditionUpdates: Partial<DataSourceCondition>) => {
+    const newSources = [...(component.dataSource.conditionalSources || [])]
+    newSources[sourceIndex] = {
+      ...newSources[sourceIndex],
+      condition: {
+        ...newSources[sourceIndex].condition,
+        ...conditionUpdates,
+      },
+    }
+    onUpdateComponent({
+      dataSource: {
+        ...component.dataSource,
+        conditionalSources: newSources,
+      },
+    })
+  }
 
   return (
     <Card title="属性配置" style={{ height: '100%', borderRadius: 0, overflow: 'auto' }}>
       <Form form={form} layout="vertical">
-        <Form.Item label="数据集">
-          <Select
-            value={component.dataSource.datasetId || undefined}
-            onChange={handleDatasetChange}
-            placeholder="请选择数据集"
+        <Form.Item label="数据源类型">
+          <Radio.Group
+            value={component.dataSource.type || 'table'}
+            onChange={(e) => handleDataSourceTypeChange(e.target.value)}
           >
-            {datasets.map(ds => (
-              <Select.Option key={ds.id} value={ds.id}>
-                {ds.name}
-              </Select.Option>
-            ))}
-          </Select>
+            <Radio value="table">固定数据源</Radio>
+            <Radio value="conditional">条件数据源</Radio>
+          </Radio.Group>
         </Form.Item>
+
+        {!useConditionalSource ? (
+          <>
+            <Form.Item label="数据集">
+              <Select
+                value={component.dataSource.datasetId || undefined}
+                onChange={handleDatasetChange}
+                placeholder="请选择数据集"
+              >
+                {datasets.map(ds => (
+                  <Select.Option key={ds.id} value={ds.id}>
+                    {ds.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </>
+        ) : (
+          <>
+            <Divider>默认数据源</Divider>
+            <Form.Item label="默认数据集">
+              <Select
+                value={component.dataSource.defaultSource?.datasetId || undefined}
+                onChange={(datasetId) => {
+                  onUpdateComponent({
+                    dataSource: {
+                      ...component.dataSource,
+                      defaultSource: {
+                        ...component.dataSource.defaultSource,
+                        datasetId,
+                        tableName: undefined,
+                      } as any,
+                    },
+                  })
+                  if (datasetId) {
+                    loadTables(datasetId)
+                  }
+                }}
+                placeholder="请选择默认数据集"
+              >
+                {datasets.map(ds => (
+                  <Select.Option key={ds.id} value={ds.id}>
+                    {ds.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+            {component.dataSource.defaultSource?.datasetId && (
+              <Form.Item label="默认数据表">
+                <Select
+                  value={component.dataSource.defaultSource?.tableName}
+                  onChange={(tableName) => {
+                    onUpdateComponent({
+                      dataSource: {
+                        ...component.dataSource,
+                        defaultSource: {
+                          ...component.dataSource.defaultSource,
+                          tableName,
+                        } as any,
+                      },
+                    })
+                  }}
+                  placeholder="请选择默认数据表"
+                >
+                  {tables.map(table => (
+                    <Select.Option key={table.id} value={table.table_name}>
+                      {table.display_name}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
+            <Divider>条件数据源</Divider>
+            {(component.dataSource.conditionalSources || []).map((source, index) => (
+              <Card
+                key={index}
+                size="small"
+                style={{ marginBottom: 16 }}
+                title={`条件 ${index + 1}`}
+                extra={
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleRemoveConditionalSource(index)}
+                  >
+                    删除
+                  </Button>
+                }
+              >
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Form.Item label="条件字段">
+                    <Input
+                      value={source.condition.field}
+                      onChange={(e) => handleUpdateCondition(index, { field: e.target.value })}
+                      placeholder="字段名（可选）"
+                    />
+                  </Form.Item>
+                  <Form.Item label="操作符">
+                    <Select
+                      value={source.condition.operator}
+                      onChange={(value) => handleUpdateCondition(index, { operator: value })}
+                      style={{ width: '100%' }}
+                    >
+                      <Select.Option value="=">=</Select.Option>
+                      <Select.Option value="!=">!=</Select.Option>
+                      <Select.Option value=">">&gt;</Select.Option>
+                      <Select.Option value="<">&lt;</Select.Option>
+                      <Select.Option value=">=">&gt;=</Select.Option>
+                      <Select.Option value="<=">&lt;=</Select.Option>
+                      <Select.Option value="IN">IN</Select.Option>
+                      <Select.Option value="LIKE">LIKE</Select.Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item label="值类型">
+                    <Radio.Group
+                      value={source.condition.valueType}
+                      onChange={(e) => handleUpdateCondition(index, { valueType: e.target.value })}
+                    >
+                      <Radio value="static">静态值</Radio>
+                      <Radio value="component">组件值</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                  {source.condition.valueType === 'static' ? (
+                    <Form.Item label="静态值">
+                      <Input
+                        value={source.condition.staticValue}
+                        onChange={(e) => handleUpdateCondition(index, { staticValue: e.target.value })}
+                        placeholder="输入静态值"
+                      />
+                    </Form.Item>
+                  ) : (
+                    <>
+                      <Form.Item label="来源组件">
+                        <Select
+                          value={source.condition.componentId}
+                          onChange={(value) => handleUpdateCondition(index, { componentId: value })}
+                          placeholder="选择组件"
+                          style={{ width: '100%' }}
+                        >
+                          {allComponents
+                            .filter(comp => comp.id !== component.id)
+                            .map(comp => (
+                              <Select.Option key={comp.id} value={comp.id}>
+                                {comp.type} ({comp.id.substring(0, 8)})
+                              </Select.Option>
+                            ))}
+                        </Select>
+                      </Form.Item>
+                      {source.condition.componentId && (
+                        <Form.Item label="组件字段">
+                          <Input
+                            value={source.condition.componentField}
+                            onChange={(e) => handleUpdateCondition(index, { componentField: e.target.value })}
+                            placeholder="组件字段名（可选）"
+                          />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                  <Form.Item label="数据源">
+                    <Select
+                      value={source.datasetId}
+                      onChange={(datasetId) => {
+                        handleUpdateConditionalSource(index, { datasetId })
+                        if (datasetId) {
+                          loadTables(datasetId)
+                        }
+                      }}
+                      placeholder="选择数据集"
+                      style={{ width: '100%' }}
+                    >
+                      {datasets.map(ds => (
+                        <Select.Option key={ds.id} value={ds.id}>
+                          {ds.name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                  {source.datasetId && (
+                    <Form.Item label="数据表">
+                      <Select
+                        value={source.tableName}
+                        onChange={(tableName) => handleUpdateConditionalSource(index, { tableName })}
+                        placeholder="选择数据表"
+                        style={{ width: '100%' }}
+                      >
+                        {tables.map(table => (
+                          <Select.Option key={table.id} value={table.table_name}>
+                            {table.display_name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  )}
+                </Space>
+              </Card>
+            ))}
+            <Button
+              type="dashed"
+              onClick={handleAddConditionalSource}
+              block
+              icon={<PlusOutlined />}
+            >
+              添加条件数据源
+            </Button>
+          </>
+        )}
+
+        {!useConditionalSource && component.dataSource.datasetId && (
+          <Form.Item label="数据表">
+            <Select
+              value={component.dataSource.tableName}
+              onChange={handleTableChange}
+              placeholder="请选择数据表"
+            >
+              {tables.map(table => (
+                <Select.Option key={table.id} value={table.table_name}>
+                  {table.display_name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        )}
 
         {component.dataSource.datasetId && (
           <Form.Item label="数据表">

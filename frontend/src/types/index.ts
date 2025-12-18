@@ -64,14 +64,7 @@ export interface ComponentConfig {
     borderColor?: string
     fontSize?: number
   }
-  dataSource: {
-    type: 'table' | 'sql'
-    datasetId: number
-    tableName?: string
-    sql?: string
-    fields: Record<string, string>
-    filters?: Filter[]
-  }
+  dataSource: DataSourceConfig
   props: Record<string, any>
   relations?: ComponentRelation[]
 }
@@ -80,5 +73,37 @@ export interface Filter {
   field: string
   operator: string
   value: any
+}
+
+export interface DataSourceCondition {
+  field?: string
+  operator: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'IN' | 'LIKE'
+  valueType: 'static' | 'component'
+  staticValue?: any
+  componentId?: string
+  componentField?: string
+}
+
+export interface ConditionalDataSource {
+  condition: DataSourceCondition
+  datasetId: number
+  tableName?: string
+  sql?: string
+}
+
+export interface DataSourceConfig {
+  type?: 'table' | 'sql' | 'conditional'
+  datasetId?: number
+  tableName?: string
+  sql?: string
+  fields: Record<string, string>
+  filters?: Filter[]
+  // 条件数据源选择配置
+  conditionalSources?: ConditionalDataSource[]
+  defaultSource?: {
+    datasetId: number
+    tableName?: string
+    sql?: string
+  }
 }
 

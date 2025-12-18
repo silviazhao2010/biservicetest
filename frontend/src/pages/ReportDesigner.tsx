@@ -159,6 +159,7 @@ const ReportDesigner: React.FC = () => {
           <Sider width={300} style={{ background: '#fff', borderLeft: '1px solid #f0f0f0' }}>
             <PropertyPanel
               component={selectedComponent}
+              allComponents={components}
               onUpdateComponent={(updates) => {
                 if (selectedComponent) {
                   handleUpdateComponent(selectedComponent.id, updates)

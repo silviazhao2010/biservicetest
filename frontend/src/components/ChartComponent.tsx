@@ -6,9 +6,11 @@ import type { ComponentConfig } from '../types'
 
 interface ChartComponentProps {
   component: ComponentConfig
+  allComponents?: ComponentConfig[]
+  getComponentValue?: (componentId: string, field?: string) => any
 }
 
-const ChartComponent: React.FC<ChartComponentProps> = ({ component }) => {
+const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponents = [], getComponentValue }) => {
   const [chartData, setChartData] = useState<any>(null)
 
   useEffect(() => {
@@ -16,20 +18,113 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component }) => {
   }, [component.dataSource])
 
   const loadData = async () => {
-    if (!component.dataSource.datasetId || !component.dataSource.tableName) {
+    // 如果是条件数据源，需要根据条件选择数据源
+    let datasetId: number | undefined
+    let tableName: string | undefined
+
+    if (component.dataSource.type === 'conditional') {
+      // 评估条件，选择合适的数据源
+      const selectedSource = evaluateConditionalSource(component)
+      if (selectedSource) {
+        datasetId = selectedSource.datasetId
+        tableName = selectedSource.tableName
+      } else if (component.dataSource.defaultSource) {
+        // 使用默认数据源
+        datasetId = component.dataSource.defaultSource.datasetId
+        tableName = component.dataSource.defaultSource.tableName
+      }
+    } else {
+      // 固定数据源
+      datasetId = component.dataSource.datasetId
+      tableName = component.dataSource.tableName
+    }
+
+    if (!datasetId || !tableName) {
       return
     }
 
     try {
       const result = await dataService.getTableData({
-        dataset_id: component.dataSource.datasetId,
-        table_name: component.dataSource.tableName,
+        dataset_id: datasetId,
+        table_name: tableName,
         filters: component.dataSource.filters || [],
       })
 
       setChartData(result.data)
     } catch (error) {
       console.error('加载数据失败:', error)
+    }
+  }
+
+  // 评估条件数据源，返回匹配的数据源配置
+  const evaluateConditionalSource = (comp: ComponentConfig): { datasetId: number, tableName?: string } | null => {
+    if (comp.dataSource.type !== 'conditional' || !comp.dataSource.conditionalSources) {
+      return null
+    }
+
+    // 遍历所有条件，找到第一个匹配的条件
+    for (const source of comp.dataSource.conditionalSources) {
+      const condition = source.condition
+      let conditionValue: any
+
+      // 获取条件值
+      if (condition.valueType === 'static') {
+        conditionValue = condition.staticValue
+      } else if (condition.valueType === 'component' && condition.componentId) {
+        // 从其他组件获取值
+        if (getComponentValue) {
+          conditionValue = getComponentValue(condition.componentId, condition.componentField)
+        } else {
+          // 如果没有提供getComponentValue，尝试从allComponents中查找
+          const sourceComponent = allComponents.find(c => c.id === condition.componentId)
+          if (sourceComponent && condition.componentField) {
+            // 尝试从组件的props或dataSource中获取值
+            conditionValue = (sourceComponent.props as any)?.[condition.componentField]
+          }
+        }
+      }
+
+      // 评估条件
+      if (evaluateCondition(condition, conditionValue)) {
+        return {
+          datasetId: source.datasetId,
+          tableName: source.tableName,
+        }
+      }
+    }
+
+    return null
+  }
+
+  // 评估单个条件
+  const evaluateCondition = (condition: any, value: any): boolean => {
+    if (value === null || value === undefined) {
+      return false
+    }
+
+    const operator = condition.operator || '='
+    const conditionValue = condition.staticValue
+
+    switch (operator) {
+      case '=':
+        return String(value) === String(conditionValue)
+      case '!=':
+        return String(value) !== String(conditionValue)
+      case '>':
+        return Number(value) > Number(conditionValue)
+      case '<':
+        return Number(value) < Number(conditionValue)
+      case '>=':
+        return Number(value) >= Number(conditionValue)
+      case '<=':
+        return Number(value) <= Number(conditionValue)
+      case 'LIKE':
+        return String(value).includes(String(conditionValue))
+      case 'IN':
+        const inValues = Array.isArray(conditionValue) ? conditionValue : [conditionValue]
+        return inValues.includes(value)
+      default:
+        return false
     }
   }
 
