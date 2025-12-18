@@ -18,6 +18,55 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   const [conditionalSourceModalVisible, setConditionalSourceModalVisible] = useState(false)
   const [modalTablesMap, setModalTablesMap] = useState<Record<number, DataTable[]>>({})
   const [componentDataSourceData, setComponentDataSourceData] = useState<Record<string, any[]>>({})
+  
+  // 加载组件数据源数据
+  const loadComponentDataSourceData = async (sourceComponent: ComponentConfig) => {
+    if (!sourceComponent || !sourceComponent.dataSource.datasetId || !sourceComponent.dataSource.tableName) {
+      return
+    }
+    
+    const cacheKey = `${sourceComponent.id}-${sourceComponent.dataSource.datasetId}-${sourceComponent.dataSource.tableName}`
+    if (componentDataSourceData[cacheKey]) {
+      return
+    }
+    
+    try {
+      const result = await dataService.getTableData({
+        dataset_id: sourceComponent.dataSource.datasetId,
+        table_name: sourceComponent.dataSource.tableName,
+        limit: 1000, // 限制最多1000条
+      })
+      setComponentDataSourceData(prev => ({
+        ...prev,
+        [cacheKey]: result.data,
+      }))
+    } catch (error) {
+      console.error('加载组件数据源失败:', error)
+    }
+  }
+  
+  // 监听条件数据源中的组件选择，自动加载数据
+  useEffect(() => {
+    if (!component || !component.dataSource.conditionalSources || !conditionalSourceModalVisible) {
+      return
+    }
+    
+    component.dataSource.conditionalSources.forEach((source) => {
+      if (source.condition.valueType === 'component' && source.condition.componentId) {
+        const sourceComponent = allComponents.find(c => c.id === source.condition.componentId)
+        if (sourceComponent) {
+          // 加载表结构
+          if (sourceComponent.dataSource?.datasetId) {
+            loadModalTables(sourceComponent.dataSource.datasetId)
+          }
+          // 加载数据
+          if (sourceComponent.dataSource?.datasetId && sourceComponent.dataSource?.tableName) {
+            loadComponentDataSourceData(sourceComponent)
+          }
+        }
+      }
+    })
+  }, [component?.dataSource.conditionalSources, allComponents, conditionalSourceModalVisible])
 
   useEffect(() => {
     loadDatasets()
@@ -520,7 +569,20 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                       <Form.Item label="来源组件">
                         <Select
                           value={source.condition.componentId}
-                          onChange={(value) => handleUpdateCondition(index, { componentId: value })}
+                          onChange={(value) => {
+                            handleUpdateCondition(index, { componentId: value })
+                            // 当选择组件后，如果该组件有数据源，自动加载表数据
+                            if (value) {
+                              const selectedComponent = allComponents.find(c => c.id === value)
+                              if (selectedComponent?.dataSource?.datasetId) {
+                                loadModalTables(selectedComponent.dataSource.datasetId)
+                                // 如果组件有数据源，也加载数据
+                                if (selectedComponent.dataSource?.tableName) {
+                                  loadComponentDataSourceData(selectedComponent)
+                                }
+                              }
+                            }
+                          }}
                           placeholder="选择组件"
                           style={{ width: '100%' }}
                         >
@@ -572,32 +634,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         }
                         const availableFields = getComponentFields(sourceComponent?.type)
                         
-                        // 加载组件数据源数据
-                        const loadComponentDataSourceData = async () => {
-                          if (!sourceComponent || !sourceComponent.dataSource.datasetId || !sourceComponent.dataSource.tableName) {
-                            return
-                          }
-                          
-                          const cacheKey = `${sourceComponent.id}-${sourceComponent.dataSource.datasetId}-${sourceComponent.dataSource.tableName}`
-                          if (componentDataSourceData[cacheKey]) {
-                            return
-                          }
-                          
-                          try {
-                            const result = await dataService.getTableData({
-                              dataset_id: sourceComponent.dataSource.datasetId,
-                              table_name: sourceComponent.dataSource.tableName,
-                              limit: 1000, // 限制最多1000条
-                            })
-                            setComponentDataSourceData(prev => ({
-                              ...prev,
-                              [cacheKey]: result.data,
-                            }))
-                          } catch (error) {
-                            console.error('加载组件数据源失败:', error)
-                          }
-                        }
-                        
                         // 获取组件数据源数据
                         const getComponentDataSourceData = () => {
                           if (!sourceComponent || !sourceComponent.dataSource.datasetId || !sourceComponent.dataSource.tableName) {
@@ -612,21 +648,27 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                           if (!sourceComponent || !sourceComponent.dataSource.datasetId || !sourceComponent.dataSource.tableName) {
                             return null
                           }
-                          // 从modalTablesMap中查找
+                          // 从modalTablesMap中查找，如果不存在则尝试加载
                           const tables = modalTablesMap[sourceComponent.dataSource.datasetId] || []
-                          return tables.find(t => t.table_name === sourceComponent.dataSource.tableName)
+                          let table = tables.find(t => t.table_name === sourceComponent.dataSource.tableName)
+                          
+                          // 如果表中不存在，尝试加载
+                          if (!table && sourceComponent.dataSource.datasetId) {
+                            // 触发加载表数据
+                            loadModalTables(sourceComponent.dataSource.datasetId)
+                          }
+                          
+                          return table
                         }
                         
                         const componentTable = getComponentDataSourceTable()
                         const componentData = getComponentDataSourceData()
                         const componentValueMode = source.condition.componentValueMode || 'current'
                         
-                        // 当选择组件时，自动加载数据
-                        React.useEffect(() => {
-                          if (sourceComponent && sourceComponent.dataSource.datasetId && sourceComponent.dataSource.tableName) {
-                            loadComponentDataSourceData()
-                          }
-                        }, [source.condition.componentId, sourceComponent?.dataSource.datasetId, sourceComponent?.dataSource.tableName])
+                        // 当选择组件且有数据源时，自动加载数据
+                        if (sourceComponent && sourceComponent.dataSource.datasetId && sourceComponent.dataSource.tableName) {
+                          loadComponentDataSourceData(sourceComponent)
+                        }
                         
                         return (
                           <>
