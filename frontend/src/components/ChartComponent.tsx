@@ -15,7 +15,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
   useEffect(() => {
     loadData()
-  }, [component.dataSource])
+  }, [component.dataSource, allComponents])
 
   const loadData = async () => {
     // 如果是条件数据源，需要根据条件选择数据源

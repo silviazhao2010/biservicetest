@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Layout, Button, message } from 'antd'
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { SaveOutlined, ArrowLeftOutlined, EyeOutlined } from '@ant-design/icons'
 import ComponentLibrary from '../components/ComponentLibrary'
 import Canvas from '../components/Canvas'
 import PropertyPanel from '../components/PropertyPanel'
@@ -134,13 +134,24 @@ const ReportDesigner: React.FC = () => {
             </Button>
             <span style={{ fontSize: '18px', fontWeight: 'bold' }}>报表设计器</span>
           </div>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={handleSave}
-          >
-            保存
-          </Button>
+          <div>
+            {reportId && (
+              <Button
+                icon={<EyeOutlined />}
+                onClick={() => navigate(`/preview/${reportId}`)}
+                style={{ marginRight: '8px' }}
+              >
+                预览
+              </Button>
+            )}
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSave}
+            >
+              保存
+            </Button>
+          </div>
         </Layout.Header>
         <Layout>
           <Sider width={200} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>

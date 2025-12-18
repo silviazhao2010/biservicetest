@@ -225,6 +225,109 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     setConditionalSourceModalVisible(false)
   }
 
+  const handleSaveConditionalSource = () => {
+    // 验证配置完整性
+    if (component.dataSource.type === 'conditional') {
+      // 检查是否有默认数据源
+      if (!component.dataSource.defaultSource?.datasetId) {
+        message.warning('请配置默认数据源')
+        return
+      }
+      
+      if (!component.dataSource.defaultSource?.tableName) {
+        message.warning('请配置默认数据表')
+        return
+      }
+      
+      // 检查条件数据源配置
+      const conditionalSources = component.dataSource.conditionalSources || []
+      for (let i = 0; i < conditionalSources.length; i++) {
+        const source = conditionalSources[i]
+        if (!source.datasetId) {
+          message.warning(`条件 ${i + 1} 未配置数据集`)
+          return
+        }
+        
+        if (!source.tableName) {
+          message.warning(`条件 ${i + 1} 未配置数据表`)
+          return
+        }
+        
+        const condition = source.condition
+        if (!condition.operator) {
+          message.warning(`条件 ${i + 1} 未配置操作符`)
+          return
+        }
+        
+        if (condition.valueType === 'static') {
+          if (condition.staticValue === undefined || condition.staticValue === null || condition.staticValue === '') {
+            message.warning(`条件 ${i + 1} 未配置静态值`)
+            return
+          }
+        }
+        
+        if (condition.valueType === 'component') {
+          if (!condition.componentId) {
+            message.warning(`条件 ${i + 1} 未选择来源组件`)
+            return
+          }
+          if (!condition.componentField) {
+            message.warning(`条件 ${i + 1} 未选择组件字段`)
+            return
+          }
+          if (condition.componentValueMode === 'fixed') {
+            if (!condition.componentTargetValueSource) {
+              message.warning(`条件 ${i + 1} 未选择目标值来源`)
+              return
+            }
+            if (condition.componentTargetValueSource === 'input' && !condition.componentTargetValue) {
+              message.warning(`条件 ${i + 1} 未配置目标值`)
+              return
+            }
+            if (condition.componentTargetValueSource === 'datasource') {
+              if (!condition.componentTargetValueField) {
+                message.warning(`条件 ${i + 1} 未选择目标值字段`)
+                return
+              }
+              if (!condition.componentTargetValue) {
+                message.warning(`条件 ${i + 1} 未选择目标值`)
+                return
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // 配置已通过onUpdateComponent实时更新到组件中
+    // 确保所有配置字段都被正确保存
+    const updatedDataSource = {
+      ...component.dataSource,
+      type: 'conditional' as const,
+    }
+    
+    // 确保条件数据源配置完整
+    if (updatedDataSource.conditionalSources) {
+      updatedDataSource.conditionalSources = updatedDataSource.conditionalSources.map(source => ({
+        ...source,
+        condition: {
+          ...source.condition,
+          // 确保所有字段都存在
+          operator: source.condition.operator || '=',
+          valueType: source.condition.valueType || 'static',
+        },
+      }))
+    }
+    
+    // 更新组件配置
+    onUpdateComponent({
+      dataSource: updatedDataSource,
+    })
+    
+    message.success('条件数据源配置已保存')
+    setConditionalSourceModalVisible(false)
+  }
+
   const loadModalTables = async (datasetId: number) => {
     // 如果已经加载过，直接返回
     if (modalTablesMap[datasetId]) {
@@ -422,11 +525,13 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
         title="条件数据源配置"
         open={conditionalSourceModalVisible}
         onCancel={handleCloseConditionalSourceModal}
-        onOk={handleCloseConditionalSourceModal}
         width={800}
         footer={[
           <Button key="cancel" onClick={handleCloseConditionalSourceModal}>
-            关闭
+            取消
+          </Button>,
+          <Button key="save" type="primary" onClick={handleSaveConditionalSource}>
+            保存
           </Button>,
         ]}
       >

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Space, message } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DatabaseOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DatabaseOutlined, EyeOutlined } from '@ant-design/icons'
 import { reportService } from '../services/reportService'
 import type { Report } from '../types'
 
@@ -58,29 +58,36 @@ const ReportList: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
     },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: Report) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/designer/${record.id}`)}
-          >
-            编辑
-          </Button>
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          >
-            删除
-          </Button>
-        </Space>
-      ),
-    },
+        {
+          title: '操作',
+          key: 'action',
+          render: (_: any, record: Report) => (
+            <Space>
+              <Button
+                type="link"
+                icon={<EyeOutlined />}
+                onClick={() => navigate(`/preview/${record.id}`)}
+              >
+                预览
+              </Button>
+              <Button
+                type="link"
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/designer/${record.id}`)}
+              >
+                编辑
+              </Button>
+              <Button
+                type="link"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record.id)}
+              >
+                删除
+              </Button>
+            </Space>
+          ),
+        },
   ]
 
   return (
