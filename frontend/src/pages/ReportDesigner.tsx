@@ -117,7 +117,14 @@ const ReportDesigner: React.FC = () => {
   }
 
   const handleSelectComponent = (component: ComponentConfig | null) => {
-    setSelectedComponent(component)
+    // 确保传递的是完整的组件对象，而不是引用
+    if (component) {
+      // 从components数组中查找最新的组件对象
+      const latestComponent = components.find(c => c.id === component.id)
+      setSelectedComponent(latestComponent || component)
+    } else {
+      setSelectedComponent(null)
+    }
   }
 
   return (

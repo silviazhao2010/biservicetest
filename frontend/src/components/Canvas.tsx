@@ -221,18 +221,28 @@ const Canvas: React.FC<CanvasProps> = ({
         }
       }}
     >
-      {components.map((component) => (
-        <ComponentWrapper
-          key={component.id}
-          component={component}
-          isSelected={selectedComponent?.id === component.id}
-          onSelect={() => onSelectComponent(component)}
-          onUpdate={(updates) => onUpdateComponent(component.id, updates)}
-          onDelete={() => onDeleteComponent(component.id)}
-          allComponents={components}
-          getComponentValue={getComponentValue}
-        />
-      ))}
+      {components.map((component) => {
+        // 使用最新的组件对象，确保引用正确
+        const currentComponent = components.find(c => c.id === component.id) || component
+        return (
+          <ComponentWrapper
+            key={component.id}
+            component={currentComponent}
+            isSelected={selectedComponent?.id === component.id}
+            onSelect={() => {
+              // 确保传递最新的组件对象
+              const latestComponent = components.find(c => c.id === component.id)
+              if (latestComponent) {
+                onSelectComponent(latestComponent)
+              }
+            }}
+            onUpdate={(updates) => onUpdateComponent(component.id, updates)}
+            onDelete={() => onDeleteComponent(component.id)}
+            allComponents={components}
+            getComponentValue={getComponentValue}
+          />
+        )
+      })}
       {components.length === 0 && !dragPreview && (
         <div
           style={{

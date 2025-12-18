@@ -47,10 +47,14 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
     preview(null, { captureDraggingState: true })
   }, [preview])
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.ant-card')) {
-      onSelect()
+  const handleClick = (e: React.MouseEvent) => {
+    // 阻止事件冒泡，避免触发画布的点击事件
+    e.stopPropagation()
+    // 如果点击的是删除按钮，不触发选择
+    if ((e.target as HTMLElement).closest('.ant-btn')) {
+      return
     }
+    onSelect()
   }
 
   return (
@@ -71,7 +75,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         pointerEvents: isDragging ? 'none' : 'auto',
         transform: isDragging ? 'none' : 'none',
       }}
-      onMouseDown={handleMouseDown}
+      onClick={handleClick}
     >
       <Card
         size="small"

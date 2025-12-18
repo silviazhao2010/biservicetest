@@ -46,11 +46,12 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       }
     })
     return JSON.stringify(values)
-  }, [component.dataSource, allComponents])
+  }, [component.dataSource, component.id, allComponents])
 
   useEffect(() => {
     loadData()
-  }, [component.dataSource, dependentValuesKey, component.id, allComponents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [component.dataSource, dependentValuesKey, component.id])
 
   const loadData = async () => {
     // 如果是条件数据源，需要根据条件选择数据源
