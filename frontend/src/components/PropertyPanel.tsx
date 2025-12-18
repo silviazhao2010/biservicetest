@@ -175,8 +175,46 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     }
   }
 
-  const currentTable = tables.find(t => t.table_name === component.dataSource.tableName)
+  // 获取当前使用的表（条件数据源时使用默认数据源的表）
+  const getCurrentTable = () => {
+    if (component.dataSource.type === 'conditional') {
+      // 条件数据源：使用默认数据源的表
+      if (component.dataSource.defaultSource?.datasetId && component.dataSource.defaultSource?.tableName) {
+        // 需要从modalTablesMap中查找，如果没有则尝试加载
+        const defaultTables = modalTablesMap[component.dataSource.defaultSource.datasetId] || []
+        let table = defaultTables.find(t => t.table_name === component.dataSource.defaultSource?.tableName)
+        // 如果没找到，尝试从tables中查找（可能已经加载过）
+        if (!table && component.dataSource.defaultSource.datasetId) {
+          const allTables = tables.filter(t => {
+            // 需要检查数据集ID，但tables可能没有datasetId信息，所以尝试加载
+            return true
+          })
+          // 如果modalTablesMap中没有，触发加载
+          if (defaultTables.length === 0) {
+            loadModalTables(component.dataSource.defaultSource.datasetId)
+          }
+        }
+        return table
+      }
+      return null
+    } else {
+      // 固定数据源：使用配置的表
+      return tables.find(t => t.table_name === component.dataSource.tableName)
+    }
+  }
+
+  const currentTable = getCurrentTable()
   const availableFields = currentTable?.schema_info.fields || []
+  
+  // 如果条件数据源模式下没有可用字段，尝试加载默认数据源的表
+  useEffect(() => {
+    if (useConditionalSource && 
+        component.dataSource.defaultSource?.datasetId && 
+        component.dataSource.defaultSource?.tableName &&
+        availableFields.length === 0) {
+      loadModalTables(component.dataSource.defaultSource.datasetId)
+    }
+  }, [useConditionalSource, component.dataSource.defaultSource, availableFields.length])
   const useConditionalSource = component.dataSource.type === 'conditional'
 
   const handleDataSourceTypeChange = (type: 'table' | 'conditional') => {
@@ -481,7 +519,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           </Form.Item>
         )}
 
-        {(!useConditionalSource && component.dataSource.tableName) && getFieldConfig().map(field => (
+        {/* 字段配置：固定数据源时显示，条件数据源时也显示（基于默认数据源的表） */}
+        {((!useConditionalSource && component.dataSource.tableName) || 
+          (useConditionalSource && component.dataSource.defaultSource?.tableName)) && 
+          getFieldConfig().map(field => (
           <Form.Item key={field.key} label={field.label}>
             <Select
               value={component.dataSource.fields[field.key]}
@@ -494,6 +535,11 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                 </Select.Option>
               ))}
             </Select>
+            {useConditionalSource && (
+              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                提示：字段配置基于默认数据源的表结构，所有条件数据源应使用相同的字段结构
+              </div>
+            )}
           </Form.Item>
         ))}
 

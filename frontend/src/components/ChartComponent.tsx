@@ -191,6 +191,33 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
     const fields = component.dataSource.fields || {}
     
+    // 检查字段配置是否完整
+    const hasRequiredFields = () => {
+      switch (component.type) {
+        case 'line_chart':
+          return !!(fields.x && fields.y)
+        case 'pie_chart':
+          return !!(fields.category && fields.value)
+        case 'tree_chart':
+          return !!(fields.name && fields.value)
+        case 'dropdown':
+          return !!fields.option
+        default:
+          return true
+      }
+    }
+
+    if (!hasRequiredFields()) {
+      return (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f' }}>
+          请配置字段映射：{component.type === 'line_chart' ? 'X轴字段和Y轴字段' : 
+                          component.type === 'pie_chart' ? '分类字段和数值字段' :
+                          component.type === 'tree_chart' ? '名称字段和数值字段' :
+                          component.type === 'dropdown' ? '选项字段' : '字段'}
+        </div>
+      )
+    }
+    
     switch (component.type) {
       case 'line_chart':
         return (
@@ -198,13 +225,13 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
             option={{
               xAxis: {
                 type: 'category',
-                data: chartData.map((item: any) => item[fields.x || '']),
+                data: chartData.map((item: any) => item[fields.x] || ''),
               },
               yAxis: {
                 type: 'value',
               },
               series: [{
-                data: chartData.map((item: any) => item[fields.y || '']),
+                data: chartData.map((item: any) => item[fields.y] || 0),
                 type: 'line',
               }],
             }}
@@ -219,8 +246,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
               series: [{
                 type: 'pie',
                 data: chartData.map((item: any) => ({
-                  name: item[fields.category || ''],
-                  value: item[fields.value || ''],
+                  name: item[fields.category] || '',
+                  value: item[fields.value] || 0,
                 })),
               }],
             }}
