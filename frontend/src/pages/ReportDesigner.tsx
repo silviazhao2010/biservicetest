@@ -101,11 +101,16 @@ const ReportDesigner: React.FC = () => {
   }
 
   const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
-    setComponents(components.map(comp => 
+    const updatedComponents = components.map(comp => 
       comp.id === id ? { ...comp, ...updates } : comp
-    ))
+    )
+    setComponents(updatedComponents)
     if (selectedComponent?.id === id) {
-      setSelectedComponent({ ...selectedComponent, ...updates })
+      // 从更新后的组件数组中获取最新组件
+      const updatedComponent = updatedComponents.find(c => c.id === id)
+      if (updatedComponent) {
+        setSelectedComponent(updatedComponent)
+      }
     }
   }
 
@@ -121,7 +126,12 @@ const ReportDesigner: React.FC = () => {
     if (component) {
       // 从components数组中查找最新的组件对象
       const latestComponent = components.find(c => c.id === component.id)
-      setSelectedComponent(latestComponent || component)
+      if (latestComponent) {
+        // 直接使用找到的组件对象，避免创建新对象导致引用变化
+        setSelectedComponent(latestComponent)
+      } else {
+        setSelectedComponent(component)
+      }
     } else {
       setSelectedComponent(null)
     }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { Select, Input } from 'antd'
 import { dataService } from '../services/dataService'
@@ -17,7 +17,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
   // 获取所有依赖的组件值，用于监听变化
   const dependentValuesKey = useMemo(() => {
-    if (component.dataSource.type !== 'conditional' || !component.dataSource.conditionalSources) {
+    if (!component?.dataSource || component.dataSource.type !== 'conditional' || !component.dataSource.conditionalSources) {
       return ''
     }
     
@@ -46,12 +46,43 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       }
     })
     return JSON.stringify(values)
-  }, [component.dataSource, component.id, allComponents])
+  }, [component.dataSource, component.id])
 
+  // 使用 useRef 来跟踪组件数据源，避免不必要的重新加载
+  const prevDataSourceRef = useRef<string>('')
+  const prevDependentValuesKeyRef = useRef<string>('')
+  const prevComponentIdRef = useRef<string>('')
+  
   useEffect(() => {
-    loadData()
+    // 检查组件和数据源是否存在
+    if (!component || !component.dataSource) {
+      return
+    }
+
+    // 检查数据源或组件ID是否真的发生了变化
+    const currentDataSourceKey = JSON.stringify(component.dataSource)
+    const dataSourceChanged = prevDataSourceRef.current !== currentDataSourceKey
+    const dependentValuesChanged = prevDependentValuesKeyRef.current !== dependentValuesKey
+    const componentIdChanged = prevComponentIdRef.current !== component.id
+    
+    // 初始化时也要加载数据
+    if (prevComponentIdRef.current === '') {
+      prevDataSourceRef.current = currentDataSourceKey
+      prevDependentValuesKeyRef.current = dependentValuesKey
+      prevComponentIdRef.current = component.id
+      loadData()
+      return
+    }
+    
+    // 只有在真正变化时才加载数据
+    if (dataSourceChanged || dependentValuesChanged || componentIdChanged) {
+      prevDataSourceRef.current = currentDataSourceKey
+      prevDependentValuesKeyRef.current = dependentValuesKey
+      prevComponentIdRef.current = component.id
+      loadData()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [component.dataSource, dependentValuesKey, component.id])
+  }, [component?.dataSource, dependentValuesKey, component?.id])
 
   const loadData = async () => {
     // 如果是条件数据源，需要根据条件选择数据源
@@ -191,6 +222,15 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   }
 
   const renderChart = () => {
+    // 检查组件和数据源是否存在
+    if (!component || !component.dataSource) {
+      return (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+          组件配置错误
+        </div>
+      )
+    }
+
     // 检查数据源配置
     let datasetId: number | undefined
     let tableName: string | undefined
@@ -353,14 +393,21 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }]
   }
 
+  // 确保总是有内容显示，避免空白
+  const chartContent = renderChart()
+  
   return (
-    <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100px' }}>
       {loading ? (
         <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
           加载中...
         </div>
+      ) : chartContent ? (
+        chartContent
       ) : (
-        renderChart()
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+          请配置数据源
+        </div>
       )}
     </div>
   )
