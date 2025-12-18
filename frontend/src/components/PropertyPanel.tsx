@@ -459,11 +459,27 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
               >
                 <Space direction="vertical" style={{ width: '100%' }}>
                   <Form.Item label="条件字段">
-                    <Input
+                    <Select
                       value={source.condition.field}
-                      onChange={(e) => handleUpdateCondition(index, { field: e.target.value })}
-                      placeholder="字段名（可选）"
-                    />
+                      onChange={(value) => handleUpdateCondition(index, { field: value || undefined })}
+                      placeholder="选择字段（可选）"
+                      allowClear
+                      style={{ width: '100%' }}
+                    >
+                      {source.datasetId && source.tableName ? (
+                        getModalTables(source.datasetId)
+                          .find(t => t.table_name === source.tableName)
+                          ?.schema_info.fields.map((field: any) => (
+                            <Select.Option key={field.name} value={field.name}>
+                              {field.name} ({field.type})
+                            </Select.Option>
+                          ))
+                      ) : (
+                        <Select.Option value="" disabled>
+                          请先选择数据表
+                        </Select.Option>
+                      )}
+                    </Select>
                   </Form.Item>
                   <Form.Item label="操作符">
                     <Select
@@ -516,15 +532,62 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                             ))}
                         </Select>
                       </Form.Item>
-                      {source.condition.componentId && (
-                        <Form.Item label="组件字段">
-                          <Input
-                            value={source.condition.componentField}
-                            onChange={(e) => handleUpdateCondition(index, { componentField: e.target.value })}
-                            placeholder="组件字段名（可选）"
-                          />
-                        </Form.Item>
-                      )}
+                      {source.condition.componentId && (() => {
+                        const sourceComponent = allComponents.find(c => c.id === source.condition.componentId)
+                        const getComponentFields = (componentType?: string): Array<{ value: string, label: string }> => {
+                          switch (componentType) {
+                            case 'dropdown':
+                              return [
+                                { value: 'value', label: 'value (当前选中值)' },
+                                { value: 'selectedValue', label: 'selectedValue (选中值)' },
+                              ]
+                            case 'text_input':
+                              return [
+                                { value: 'value', label: 'value (输入值)' },
+                              ]
+                            case 'line_chart':
+                              return [
+                                { value: 'x', label: 'x (X轴字段值)' },
+                                { value: 'y', label: 'y (Y轴字段值)' },
+                                { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                              ]
+                            case 'pie_chart':
+                              return [
+                                { value: 'category', label: 'category (分类字段值)' },
+                                { value: 'value', label: 'value (数值字段值)' },
+                                { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                              ]
+                            case 'tree_chart':
+                              return [
+                                { value: 'name', label: 'name (名称字段值)' },
+                                { value: 'value', label: 'value (数值字段值)' },
+                                { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                              ]
+                            default:
+                              return [
+                                { value: 'value', label: 'value (默认值)' },
+                              ]
+                          }
+                        }
+                        const availableFields = getComponentFields(sourceComponent?.type)
+                        return (
+                          <Form.Item label="组件字段">
+                            <Select
+                              value={source.condition.componentField}
+                              onChange={(value) => handleUpdateCondition(index, { componentField: value || undefined })}
+                              placeholder="选择组件字段"
+                              allowClear
+                              style={{ width: '100%' }}
+                            >
+                              {availableFields.map(field => (
+                                <Select.Option key={field.value} value={field.value}>
+                                  {field.label}
+                                </Select.Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        )
+                      })()}
                     </>
                   )}
                   <Form.Item label="数据源">
@@ -550,7 +613,17 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                     <Form.Item label="数据表">
                       <Select
                         value={source.tableName}
-                        onChange={(tableName) => handleUpdateConditionalSource(index, { tableName })}
+                        onChange={(tableName) => {
+                          handleUpdateConditionalSource(index, { tableName })
+                          // 如果选择了数据表，检查条件字段是否在新表中存在
+                          if (tableName && source.condition.field) {
+                            const newTable = getModalTables(source.datasetId).find(t => t.table_name === tableName)
+                            const fieldExists = newTable?.schema_info.fields.some((f: any) => f.name === source.condition.field)
+                            if (!fieldExists) {
+                              handleUpdateCondition(index, { field: undefined })
+                            }
+                          }
+                        }}
                         placeholder="选择数据表"
                         style={{ width: '100%' }}
                       >
