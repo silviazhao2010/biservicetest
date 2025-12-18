@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { Select, Input } from 'antd'
 import { dataService } from '../services/dataService'
@@ -8,14 +8,40 @@ interface ChartComponentProps {
   component: ComponentConfig
   allComponents?: ComponentConfig[]
   getComponentValue?: (componentId: string, field?: string) => any
+  onComponentValueChange?: (componentId: string, value: any, field?: string) => void
 }
 
-const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponents = [], getComponentValue }) => {
+const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponents = [], getComponentValue, onComponentValueChange }) => {
   const [chartData, setChartData] = useState<any>(null)
+
+  // 获取所有依赖的组件值，用于监听变化
+  const dependentValuesKey = useMemo(() => {
+    if (component.dataSource.type !== 'conditional' || !component.dataSource.conditionalSources) {
+      return ''
+    }
+    
+    const values: Record<string, any> = {}
+    component.dataSource.conditionalSources.forEach(source => {
+      if (source.condition.valueType === 'component' && source.condition.componentId) {
+        const compId = source.condition.componentId
+        const field = source.condition.componentField || 'value'
+        if (getComponentValue) {
+          values[`${compId}.${field}`] = getComponentValue(compId, field)
+        } else {
+          const sourceComponent = allComponents.find(c => c.id === compId)
+          if (sourceComponent) {
+            values[`${compId}.${field}`] = (sourceComponent.props as any)?.[field] || null
+          }
+        }
+      }
+    })
+    return JSON.stringify(values)
+  }, [component.dataSource, allComponents, getComponentValue])
 
   useEffect(() => {
     loadData()
-  }, [component.dataSource, allComponents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [component.dataSource, dependentValuesKey, component.id])
 
   const loadData = async () => {
     // 如果是条件数据源，需要根据条件选择数据源
@@ -192,6 +218,12 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
           <Select
             style={{ width: '100%' }}
             placeholder="请选择"
+            value={(component.props as any)?.value}
+            onChange={(value) => {
+              if (onComponentValueChange) {
+                onComponentValueChange(component.id, value, 'value')
+              }
+            }}
             options={chartData.map((item: any) => ({
               label: item[fields.option || ''],
               value: item[fields.option || ''],
@@ -200,7 +232,17 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         )
       
       case 'text_input':
-        return <Input placeholder="请输入" />
+        return (
+          <Input 
+            placeholder="请输入"
+            value={(component.props as any)?.value || ''}
+            onChange={(e) => {
+              if (onComponentValueChange) {
+                onComponentValueChange(component.id, e.target.value, 'value')
+              }
+            }}
+          />
+        )
       
       case 'tree_chart':
         return (
