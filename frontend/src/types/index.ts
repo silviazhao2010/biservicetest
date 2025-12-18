@@ -82,6 +82,11 @@ export interface DataSourceCondition {
   staticValue?: any
   componentId?: string
   componentField?: string
+  // 组件值模式下的目标值配置
+  componentValueMode?: 'current' | 'fixed' // 'current': 使用组件当前值, 'fixed': 使用固定值匹配
+  componentTargetValue?: any // 当componentValueMode为'fixed'时，用于匹配的目标值
+  componentTargetValueSource?: 'input' | 'datasource' // 目标值来源：手动输入或从数据源选择
+  componentTargetValueField?: string // 从数据源选择时使用的字段名
 }
 
 export interface ConditionalDataSource {

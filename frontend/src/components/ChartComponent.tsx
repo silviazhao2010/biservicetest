@@ -103,7 +103,15 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }
 
     const operator = condition.operator || '='
-    const conditionValue = condition.staticValue
+    // 如果是组件值模式，根据模式选择比较值
+    let conditionValue: any
+    if (condition.valueType === 'component' && condition.componentValueMode === 'fixed') {
+      // 使用固定值匹配模式
+      conditionValue = condition.componentTargetValue
+    } else {
+      // 使用静态值或组件当前值
+      conditionValue = condition.staticValue
+    }
 
     switch (operator) {
       case '=':
