@@ -1,14 +1,29 @@
 import sqlite3
+import os
 from app.config import Config
 
 def init_database():
     """初始化数据库表结构"""
+    # 如果系统数据库已存在，先删除
+    if Config.DATABASE_PATH.exists():
+        print(f"检测到系统数据库已存在，正在删除: {Config.DATABASE_PATH}")
+        # 确保所有连接都已关闭
+        try:
+            # 尝试连接并立即关闭，确保文件未被锁定
+            temp_conn = sqlite3.connect(Config.DATABASE_PATH)
+            temp_conn.close()
+        except Exception:
+            pass
+        Config.DATABASE_PATH.unlink()
+        print("系统数据库已删除")
+    
+    # 创建系统数据库
     conn = sqlite3.connect(Config.DATABASE_PATH)
     cursor = conn.cursor()
     
     # 创建数据集表
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS datasets (
+        CREATE TABLE datasets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name VARCHAR(100) NOT NULL,
             description TEXT,
@@ -20,7 +35,7 @@ def init_database():
     
     # 创建报表表
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reports (
+        CREATE TABLE reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name VARCHAR(100) NOT NULL,
             description TEXT,
@@ -31,14 +46,32 @@ def init_database():
         )
     ''')
     
+    conn.commit()
+    conn.close()
+    print("系统数据库创建完成")
+    
     # 创建示例数据集数据库
     sample_db_path = Config.DATASETS_DIR / 'sample.db'
+    
+    # 如果示例数据集数据库已存在，先删除
+    if sample_db_path.exists():
+        print(f"检测到示例数据集数据库已存在，正在删除: {sample_db_path}")
+        # 确保所有连接都已关闭
+        try:
+            temp_conn = sqlite3.connect(sample_db_path)
+            temp_conn.close()
+        except Exception:
+            pass
+        sample_db_path.unlink()
+        print("示例数据集数据库已删除")
+    
+    # 创建示例数据集数据库
     sample_conn = sqlite3.connect(sample_db_path)
     sample_cursor = sample_conn.cursor()
     
     # 创建示例销售表
     sample_cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sales (
+        CREATE TABLE sales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date DATE NOT NULL,
             product VARCHAR(100),
@@ -66,10 +99,14 @@ def init_database():
     
     sample_conn.commit()
     sample_conn.close()
+    print("示例数据集数据库创建完成")
     
     # 在系统数据库中注册示例数据集
+    conn = sqlite3.connect(Config.DATABASE_PATH)
+    cursor = conn.cursor()
+    
     cursor.execute('''
-        INSERT OR IGNORE INTO datasets (name, description, database_path)
+        INSERT INTO datasets (name, description, database_path)
         VALUES (?, ?, ?)
     ''', ('示例数据集', '包含销售数据的示例数据集', str(sample_db_path)))
     

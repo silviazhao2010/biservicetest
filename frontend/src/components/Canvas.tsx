@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import { useDrop } from 'react-dnd'
 import ComponentWrapper from './ComponentWrapper'
 import type { ComponentConfig } from '../types'
@@ -21,10 +21,34 @@ const Canvas: React.FC<CanvasProps> = ({
   onAddComponent,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const [dragPreview, setDragPreview] = useState<{ x: number, y: number, type?: ComponentConfig['type'] } | null>(null)
 
-  const [{ isOver }, drop] = useDrop(() => ({
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ['component', 'component-library'],
+    hover: (item: ComponentConfig | { type: ComponentConfig['type'] }, monitor) => {
+      if (!canvasRef.current) {
+        return
+      }
+
+      const offset = monitor.getClientOffset()
+      if (!offset) {
+        return
+      }
+
+      const canvasRect = canvasRef.current.getBoundingClientRect()
+      const x = offset.x - canvasRect.left
+      const y = offset.y - canvasRect.top
+
+      // 如果是从组件库拖拽的组件，显示预览
+      if ('type' in item && !('id' in item)) {
+        setDragPreview({ x, y, type: item.type })
+      } else {
+        setDragPreview(null)
+      }
+    },
     drop: (item: ComponentConfig | { type: ComponentConfig['type'] }, monitor) => {
+      setDragPreview(null)
+      
       if (!canvasRef.current) {
         return
       }
@@ -40,14 +64,51 @@ const Canvas: React.FC<CanvasProps> = ({
 
       // 如果是从组件库拖拽过来的新组件
       if ('type' in item && !('id' in item) && onAddComponent) {
+        // 生成唯一ID，使用时间戳和随机数
+        const uniqueId = `component-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        
+        // 计算新组件位置，避免与现有组件重叠
+        const defaultWidth = 400
+        const defaultHeight = 300
+        let newX = Math.max(0, x - defaultWidth / 2)
+        let newY = Math.max(0, y - defaultHeight / 2)
+        
+        // 检查是否与现有组件重叠，如果重叠则偏移位置
+        const padding = 20
+        let attempts = 0
+        while (attempts < 10) {
+          const overlapping = components.some(comp => {
+            const compRight = comp.position.x + comp.position.width
+            const compBottom = comp.position.y + comp.position.height
+            const newRight = newX + defaultWidth
+            const newBottom = newY + defaultHeight
+            
+            return !(
+              newX > compRight + padding ||
+              newRight < comp.position.x - padding ||
+              newY > compBottom + padding ||
+              newBottom < comp.position.y - padding
+            )
+          })
+          
+          if (!overlapping) {
+            break
+          }
+          
+          // 如果重叠，向右下方偏移
+          newX += defaultWidth + padding
+          newY += defaultHeight + padding
+          attempts++
+        }
+        
         const newComponent: ComponentConfig = {
-          id: `component-${Date.now()}`,
+          id: uniqueId,
           type: item.type,
           position: {
-            x: Math.max(0, x - 200),
-            y: Math.max(0, y - 150),
-            width: 400,
-            height: 300,
+            x: newX,
+            y: newY,
+            width: defaultWidth,
+            height: defaultHeight,
           },
           style: {},
           dataSource: {
@@ -90,8 +151,10 @@ const Canvas: React.FC<CanvasProps> = ({
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
+      canDrop: monitor.canDrop(),
     }),
   }))
+
 
   return (
     <div
@@ -103,8 +166,9 @@ const Canvas: React.FC<CanvasProps> = ({
         width: '100%',
         height: '100%',
         position: 'relative',
-        background: isOver ? '#e6f7ff' : '#f5f5f5',
+        background: isOver && canDrop ? '#e6f7ff' : '#f5f5f5',
         overflow: 'auto',
+        transition: 'background-color 0.2s',
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -122,7 +186,7 @@ const Canvas: React.FC<CanvasProps> = ({
           onDelete={() => onDeleteComponent(component.id)}
         />
       ))}
-      {components.length === 0 && (
+      {components.length === 0 && !dragPreview && (
         <div
           style={{
             position: 'absolute',
@@ -134,6 +198,31 @@ const Canvas: React.FC<CanvasProps> = ({
           }}
         >
           从左侧组件库拖拽组件到此处，或点击组件添加到画布
+        </div>
+      )}
+      
+      {/* 拖拽预览 */}
+      {dragPreview && (
+        <div
+          style={{
+            position: 'absolute',
+            left: Math.max(0, dragPreview.x - 200),
+            top: Math.max(0, dragPreview.y - 150),
+            width: 400,
+            height: 300,
+            border: '2px dashed #1890ff',
+            backgroundColor: 'rgba(24, 144, 255, 0.1)',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#1890ff',
+            fontSize: '14px',
+            zIndex: 9999,
+          }}
+        >
+          放置组件
         </div>
       )}
     </div>

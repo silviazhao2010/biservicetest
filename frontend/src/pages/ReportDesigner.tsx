@@ -62,14 +62,32 @@ const ReportDesigner: React.FC = () => {
   }
 
   const handleAddComponent = (type: ComponentConfig['type']) => {
+    // 生成唯一ID
+    const uniqueId = `component-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // 计算新组件位置，避免与现有组件重叠
+    const defaultWidth = 400
+    const defaultHeight = 300
+    const padding = 20
+    let newX = 100
+    let newY = 100
+    
+    // 找到最右侧和最底部的组件位置
+    if (components.length > 0) {
+      const maxX = Math.max(...components.map(comp => comp.position.x + comp.position.width))
+      const maxY = Math.max(...components.map(comp => comp.position.y + comp.position.height))
+      newX = maxX + padding
+      newY = maxY + padding
+    }
+    
     const newComponent: ComponentConfig = {
-      id: `component-${Date.now()}`,
+      id: uniqueId,
       type,
       position: {
-        x: 100,
-        y: 100,
-        width: 400,
-        height: 300,
+        x: newX,
+        y: newY,
+        width: defaultWidth,
+        height: defaultHeight,
       },
       style: {},
       dataSource: {

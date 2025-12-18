@@ -14,8 +14,10 @@ import {
   InputNumber,
   DatePicker,
   message,
+  Checkbox,
+  Divider,
 } from 'antd'
-import { PlusOutlined, ArrowLeftOutlined, DatabaseOutlined } from '@ant-design/icons'
+import { PlusOutlined, ArrowLeftOutlined, DatabaseOutlined, TableOutlined, FieldTimeOutlined, MinusCircleOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
 import type { Dataset, DataTable } from '../types'
@@ -47,7 +49,13 @@ const DatabaseViewer: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [addModalVisible, setAddModalVisible] = useState(false)
+  const [addDatasetModalVisible, setAddDatasetModalVisible] = useState(false)
+  const [addTableModalVisible, setAddTableModalVisible] = useState(false)
+  const [addColumnModalVisible, setAddColumnModalVisible] = useState(false)
   const [form] = Form.useForm()
+  const [datasetForm] = Form.useForm()
+  const [tableForm] = Form.useForm()
+  const [columnForm] = Form.useForm()
 
   useEffect(() => {
     loadDatasets()
@@ -248,6 +256,12 @@ const DatabaseViewer: React.FC = () => {
           <span style={{ fontSize: '18px', fontWeight: 'bold' }}>数据库浏览</span>
         </div>
         <Space>
+          <Button
+            icon={<PlusOutlined />}
+            onClick={() => setAddDatasetModalVisible(true)}
+          >
+            新建数据集
+          </Button>
           <Select
             value={selectedDatasetId}
             onChange={handleDatasetChange}
@@ -258,14 +272,30 @@ const DatabaseViewer: React.FC = () => {
               <Option key={ds.id} value={ds.id}>{ds.name}</Option>
             ))}
           </Select>
-          {selectedTable && (
+          {selectedDatasetId && (
             <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAddData}
+              icon={<TableOutlined />}
+              onClick={() => setAddTableModalVisible(true)}
             >
-              添加数据
+              新建表
             </Button>
+          )}
+          {selectedTable && (
+            <>
+              <Button
+                icon={<FieldTimeOutlined />}
+                onClick={() => setAddColumnModalVisible(true)}
+              >
+                添加字段
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAddData}
+              >
+                添加数据
+              </Button>
+            </>
           )}
         </Space>
       </Layout.Header>
@@ -356,6 +386,253 @@ const DatabaseViewer: React.FC = () => {
               {field.input}
             </Form.Item>
           ))}
+        </Form>
+      </Modal>
+
+      {/* 创建数据集模态框 */}
+      <Modal
+        title="新建数据集"
+        open={addDatasetModalVisible}
+        onCancel={() => {
+          setAddDatasetModalVisible(false)
+          datasetForm.resetFields()
+        }}
+        onOk={() => datasetForm.submit()}
+        width={500}
+      >
+        <Form
+          form={datasetForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              await datasetService.createDataset({
+                name: values.name,
+                description: values.description,
+                database_name: values.database_name,
+              })
+              message.success('创建数据集成功')
+              setAddDatasetModalVisible(false)
+              datasetForm.resetFields()
+              loadDatasets()
+            } catch (error: any) {
+              message.error(error.response?.data?.message || '创建数据集失败')
+            }
+          }}
+        >
+          <Form.Item
+            name="name"
+            label="数据集名称"
+            rules={[{ required: true, message: '请输入数据集名称' }]}
+          >
+            <Input placeholder="例如：销售数据" />
+          </Form.Item>
+          <Form.Item
+            name="description"
+            label="描述"
+          >
+            <Input.TextArea rows={3} placeholder="数据集的描述信息" />
+          </Form.Item>
+          <Form.Item
+            name="database_name"
+            label="数据库文件名（可选）"
+            tooltip="如果不填写，将使用数据集名称自动生成"
+          >
+            <Input placeholder="例如：sales_data.db" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 创建表模态框 */}
+      <Modal
+        title="新建数据表"
+        open={addTableModalVisible}
+        onCancel={() => {
+          setAddTableModalVisible(false)
+          tableForm.resetFields()
+        }}
+        onOk={() => tableForm.submit()}
+        width={700}
+      >
+        <Form
+          form={tableForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            if (!selectedDatasetId) {
+              return
+            }
+            try {
+              await datasetService.createTable(selectedDatasetId, {
+                table_name: values.table_name,
+                fields: values.fields,
+              })
+              message.success('创建表成功')
+              setAddTableModalVisible(false)
+              tableForm.resetFields()
+              loadTables(selectedDatasetId)
+            } catch (error: any) {
+              message.error(error.response?.data?.message || '创建表失败')
+            }
+          }}
+          initialValues={{
+            fields: [{ name: '', type: 'TEXT', primaryKey: false, notNull: false }],
+          }}
+        >
+          <Form.Item
+            name="table_name"
+            label="表名"
+            rules={[{ required: true, message: '请输入表名' }]}
+          >
+            <Input placeholder="例如：users" />
+          </Form.Item>
+          <Divider>字段定义</Divider>
+          <Form.List name="fields">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map((field, index) => (
+                  <div key={field.key} style={{ marginBottom: 16, padding: 16, border: '1px solid #f0f0f0', borderRadius: 4 }}>
+                    <Space style={{ width: '100%', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'name']}
+                        label="字段名"
+                        rules={[{ required: true, message: '请输入字段名' }]}
+                        style={{ width: 150 }}
+                      >
+                        <Input placeholder="字段名" />
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'type']}
+                        label="类型"
+                        rules={[{ required: true, message: '请选择类型' }]}
+                        style={{ width: 120 }}
+                      >
+                        <Select>
+                          <Option value="INTEGER">INTEGER</Option>
+                          <Option value="REAL">REAL</Option>
+                          <Option value="TEXT">TEXT</Option>
+                          <Option value="BLOB">BLOB</Option>
+                          <Option value="DATE">DATE</Option>
+                        </Select>
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'primaryKey']}
+                        valuePropName="checked"
+                      >
+                        <Checkbox>主键</Checkbox>
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'notNull']}
+                        valuePropName="checked"
+                      >
+                        <Checkbox>非空</Checkbox>
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'default']}
+                        label="默认值"
+                        style={{ width: 120 }}
+                      >
+                        <Input placeholder="默认值" />
+                      </Form.Item>
+                      {fields.length > 1 && (
+                        <Button
+                          type="link"
+                          danger
+                          icon={<MinusCircleOutlined />}
+                          onClick={() => remove(field.name)}
+                        >
+                          删除
+                        </Button>
+                      )}
+                    </Space>
+                  </div>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() => add()}
+                  block
+                  icon={<PlusOutlined />}
+                >
+                  添加字段
+                </Button>
+              </>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+
+      {/* 添加字段模态框 */}
+      <Modal
+        title={`添加字段到 ${selectedTable}`}
+        open={addColumnModalVisible}
+        onCancel={() => {
+          setAddColumnModalVisible(false)
+          columnForm.resetFields()
+        }}
+        onOk={() => columnForm.submit()}
+        width={500}
+      >
+        <Form
+          form={columnForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            if (!selectedDatasetId || !selectedTable) {
+              return
+            }
+            try {
+              await datasetService.addColumn(selectedDatasetId, selectedTable, {
+                column_name: values.column_name,
+                column_type: values.column_type,
+                not_null: values.not_null || false,
+                default_value: values.default_value,
+              })
+              message.success('添加字段成功')
+              setAddColumnModalVisible(false)
+              columnForm.resetFields()
+              loadTables(selectedDatasetId)
+              if (selectedTable) {
+                loadTableData(selectedDatasetId, selectedTable, currentPage, pageSize)
+              }
+            } catch (error: any) {
+              message.error(error.response?.data?.message || '添加字段失败')
+            }
+          }}
+        >
+          <Form.Item
+            name="column_name"
+            label="字段名"
+            rules={[{ required: true, message: '请输入字段名' }]}
+          >
+            <Input placeholder="例如：email" />
+          </Form.Item>
+          <Form.Item
+            name="column_type"
+            label="类型"
+            rules={[{ required: true, message: '请选择类型' }]}
+          >
+            <Select>
+              <Option value="INTEGER">INTEGER</Option>
+              <Option value="REAL">REAL</Option>
+              <Option value="TEXT">TEXT</Option>
+              <Option value="BLOB">BLOB</Option>
+              <Option value="DATE">DATE</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="not_null"
+            valuePropName="checked"
+          >
+            <Checkbox>非空</Checkbox>
+          </Form.Item>
+          <Form.Item
+            name="default_value"
+            label="默认值"
+          >
+            <Input placeholder="默认值（可选）" />
+          </Form.Item>
         </Form>
       </Modal>
     </Layout>
