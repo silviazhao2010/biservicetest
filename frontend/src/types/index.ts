@@ -34,6 +34,20 @@ export interface Report {
 
 export interface ReportConfig {
   components: ComponentConfig[]
+  relations?: Array<{
+    sourceId: string
+    targetId: string
+    relationType: 'filter' | 'data' | 'trigger'
+    config?: Record<string, any>
+  }>
+}
+
+export interface ComponentRelation {
+  targetComponentId: string
+  relationType: 'filter' | 'data' | 'trigger'
+  sourceField?: string
+  targetField?: string
+  operator?: string
 }
 
 export interface ComponentConfig {
@@ -59,6 +73,7 @@ export interface ComponentConfig {
     filters?: Filter[]
   }
   props: Record<string, any>
+  relations?: ComponentRelation[]
 }
 
 export interface Filter {

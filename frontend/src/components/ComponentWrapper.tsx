@@ -25,7 +25,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'component',
     item: () => {
-      // 记录拖拽开始时的偏移量
+      // 记录拖拽开始时的位置信息
       if (wrapperRef.current) {
         const rect = wrapperRef.current.getBoundingClientRect()
         return {
@@ -43,6 +43,10 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
     }),
     end: (item, monitor) => {
       // 拖拽结束时，位置更新已经在 Canvas 的 drop 处理中完成
+      // 确保组件不会消失
+      if (!monitor.didDrop()) {
+        // 如果拖拽没有成功放置，可以在这里处理
+      }
     },
   }))
 
@@ -66,7 +70,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         height: component.position.height,
         opacity: isDragging ? 0.5 : 1,
         cursor: 'move',
-        zIndex: isSelected ? 1000 : 1,
+        zIndex: isSelected ? 1000 : isDragging ? 999 : 1,
       }}
       onMouseDown={handleMouseDown}
     >

@@ -36,8 +36,10 @@ const Canvas: React.FC<CanvasProps> = ({
       }
 
       const canvasRect = canvasRef.current.getBoundingClientRect()
-      const x = offset.x - canvasRect.left
-      const y = offset.y - canvasRect.top
+      const scrollLeft = canvasRef.current.scrollLeft || 0
+      const scrollTop = canvasRef.current.scrollTop || 0
+      const x = offset.x - canvasRect.left + scrollLeft
+      const y = offset.y - canvasRect.top + scrollTop
 
       // 如果是从组件库拖拽的组件，显示预览
       if ('type' in item && !('id' in item)) {
@@ -59,8 +61,10 @@ const Canvas: React.FC<CanvasProps> = ({
       }
 
       const canvasRect = canvasRef.current.getBoundingClientRect()
-      const x = offset.x - canvasRect.left
-      const y = offset.y - canvasRect.top
+      const scrollLeft = canvasRef.current.scrollLeft || 0
+      const scrollTop = canvasRef.current.scrollTop || 0
+      const x = offset.x - canvasRect.left + scrollLeft
+      const y = offset.y - canvasRect.top + scrollTop
 
       // 如果是从组件库拖拽过来的新组件
       if ('type' in item && !('id' in item) && onAddComponent) {
@@ -124,22 +128,37 @@ const Canvas: React.FC<CanvasProps> = ({
 
       // 如果是画布上已有的组件，更新位置
       if ('id' in item) {
+        // 获取画布的滚动位置
+        const scrollLeft = canvasRef.current?.scrollLeft || 0
+        const scrollTop = canvasRef.current?.scrollTop || 0
+        
         // 获取拖拽的初始偏移量（如果有）
         const dragOffset = (item as any).dragOffset
-        let newX = x - item.position.width / 2
-        let newY = y - item.position.height / 2
+        const initialOffset = monitor.getInitialClientOffset()
+        
+        let newX: number
+        let newY: number
 
-        // 如果有拖拽偏移量，使用更精确的计算
-        if (dragOffset) {
-          const initialOffset = monitor.getInitialClientOffset()
-          if (initialOffset) {
-            const deltaX = offset.x - initialOffset.x
-            const deltaY = offset.y - initialOffset.y
-            newX = item.position.x + deltaX
-            newY = item.position.y + deltaY
-          }
+        // 如果有拖拽偏移量和初始位置，使用更精确的计算
+        if (dragOffset && initialOffset) {
+          // 计算鼠标移动的增量
+          const deltaX = offset.x - initialOffset.x
+          const deltaY = offset.y - initialOffset.y
+          
+          // 计算组件在画布中的原始位置（考虑滚动）
+          const originalX = dragOffset.x - canvasRect.left + scrollLeft
+          const originalY = dragOffset.y - canvasRect.top + scrollTop
+          
+          // 新位置 = 原始位置 + 移动增量
+          newX = originalX + deltaX
+          newY = originalY + deltaY
+        } else {
+          // 如果没有初始偏移量，使用鼠标位置减去组件中心偏移
+          newX = x - item.position.width / 2
+          newY = y - item.position.height / 2
         }
 
+        // 确保位置不为负数
         onUpdateComponent(item.id, {
           position: {
             ...item.position,

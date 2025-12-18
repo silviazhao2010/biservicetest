@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Select, InputNumber, Button, message } from 'antd'
+import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
-import type { ComponentConfig, Dataset, DataTable } from '../types'
+import type { ComponentConfig, Dataset, DataTable, ComponentRelation } from '../types'
 
 interface PropertyPanelProps {
   component: ComponentConfig | null
+  allComponents?: ComponentConfig[]
   onUpdateComponent: (updates: Partial<ComponentConfig>) => void
 }
 
-const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, onUpdateComponent }) => {
+const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents = [], onUpdateComponent }) => {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [tables, setTables] = useState<DataTable[]>([])
   const [form] = Form.useForm()
