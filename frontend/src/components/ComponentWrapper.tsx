@@ -26,10 +26,10 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
 
-  const [{ isDragging }, drag] = useDrag(() => ({
+  const [{ isDragging }, drag, preview] = useDrag(() => ({
     type: 'component',
     item: () => {
-      // 返回组件信息，react-dnd会自动处理位置信息
+      // 返回组件信息
       return {
         ...component,
       }
@@ -38,13 +38,14 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
       isDragging: monitor.isDragging(),
     }),
     end: (item, monitor) => {
-      // 拖拽结束时，位置更新已经在 Canvas 的 drop 处理中完成
-      // 如果拖拽没有成功放置，确保组件位置不变
-      if (!monitor.didDrop()) {
-        // 组件位置已经在drop中更新，这里不需要额外处理
-      }
+      // 拖拽结束时的处理
     },
   }))
+
+  // 使用空预览，让原始元素保持可见
+  React.useEffect(() => {
+    preview(null, { captureDraggingState: true })
+  }, [preview])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.ant-card')) {
@@ -64,10 +65,11 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         top: component.position.y,
         width: component.position.width,
         height: component.position.height,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.6 : 1,
         cursor: 'move',
         zIndex: isSelected ? 1000 : isDragging ? 999 : 1,
-        visibility: isDragging ? 'visible' : 'visible',
+        pointerEvents: isDragging ? 'none' : 'auto',
+        transform: isDragging ? 'none' : 'none',
       }}
       onMouseDown={handleMouseDown}
     >

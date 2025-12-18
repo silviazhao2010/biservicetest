@@ -46,6 +46,42 @@ const Canvas: React.FC<CanvasProps> = ({
       // 如果是从组件库拖拽的组件，显示预览
       if ('type' in item && !('id' in item)) {
         setDragPreview({ x, y, type: item.type })
+      } else if ('id' in item) {
+        // 如果是画布上的组件，在hover时实时更新位置
+        const initialOffset = monitor.getInitialClientOffset()
+        const initialSourceClientOffset = monitor.getInitialSourceClientOffset()
+        
+        if (initialOffset && initialSourceClientOffset) {
+          // 计算鼠标移动的增量
+          const deltaX = offset.x - initialOffset.x
+          const deltaY = offset.y - initialOffset.y
+          
+          // 获取当前组件的最新位置（从components数组中获取，而不是item）
+          const currentComponent = components.find(c => c.id === item.id)
+          if (currentComponent) {
+            // 组件在画布中的原始位置（使用当前组件的位置，而不是item中的位置）
+            const originalX = currentComponent.position.x
+            const originalY = currentComponent.position.y
+            
+            // 新位置 = 原始位置 + 移动增量
+            const newX = Math.max(0, originalX + deltaX)
+            const newY = Math.max(0, originalY + deltaY)
+            
+            // 只有当位置发生变化时才更新
+            if (Math.abs(newX - currentComponent.position.x) > 1 || 
+                Math.abs(newY - currentComponent.position.y) > 1) {
+              // 实时更新组件位置
+              onUpdateComponent(item.id, {
+                position: {
+                  ...currentComponent.position,
+                  x: newX,
+                  y: newY,
+                },
+              })
+            }
+          }
+        }
+        setDragPreview(null)
       } else {
         setDragPreview(null)
       }
@@ -128,19 +164,14 @@ const Canvas: React.FC<CanvasProps> = ({
         return
       }
 
-      // 如果是画布上已有的组件，更新位置
+      // 如果是画布上已有的组件，在drop时最终确认位置
+      // 注意：位置已经在hover时实时更新了，这里只需要确保位置正确
       if ('id' in item) {
-        // 获取拖拽的初始偏移量（如果有）
-        const dragOffset = (item as any).dragOffset
         const initialOffset = monitor.getInitialClientOffset()
         const initialSourceClientOffset = monitor.getInitialSourceClientOffset()
         
-        let newX: number
-        let newY: number
-
-        // 如果有初始位置信息，使用更精确的计算
         if (initialOffset && initialSourceClientOffset) {
-          // 计算鼠标相对于组件初始位置的移动距离
+          // 计算鼠标移动的增量
           const deltaX = offset.x - initialOffset.x
           const deltaY = offset.y - initialOffset.y
           
@@ -149,37 +180,18 @@ const Canvas: React.FC<CanvasProps> = ({
           const originalY = item.position.y
           
           // 新位置 = 原始位置 + 移动增量
-          newX = originalX + deltaX
-          newY = originalY + deltaY
-        } else if (dragOffset && initialOffset) {
-          // 备用方案：使用dragOffset计算
-          const deltaX = offset.x - initialOffset.x
-          const deltaY = offset.y - initialOffset.y
+          const newX = Math.max(0, originalX + deltaX)
+          const newY = Math.max(0, originalY + deltaY)
           
-          // 计算组件在画布中的原始位置（考虑滚动）
-          const originalCanvasX = dragOffset.x - canvasRect.left + scrollLeft
-          const originalCanvasY = dragOffset.y - canvasRect.top + scrollTop
-          
-          newX = originalCanvasX + deltaX
-          newY = originalCanvasY + deltaY
-        } else {
-          // 如果没有初始偏移量，使用鼠标位置减去组件中心偏移
-          newX = x - item.position.width / 2
-          newY = y - item.position.height / 2
+          // 最终确认位置（防止hover时更新不及时）
+          onUpdateComponent(item.id, {
+            position: {
+              ...item.position,
+              x: newX,
+              y: newY,
+            },
+          })
         }
-
-        // 确保位置不为负数，并且组件不会超出合理范围
-        const finalX = Math.max(0, newX)
-        const finalY = Math.max(0, newY)
-        
-        // 更新组件位置
-        onUpdateComponent(item.id, {
-          position: {
-            ...item.position,
-            x: finalX,
-            y: finalY,
-          },
-        })
       }
     },
     collect: (monitor) => ({
