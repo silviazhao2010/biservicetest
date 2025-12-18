@@ -25,23 +25,31 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       if (source.condition.valueType === 'component' && source.condition.componentId) {
         const compId = source.condition.componentId
         const field = source.condition.componentField || 'value'
+        
+        // 优先使用 getComponentValue，如果没有则从 allComponents 中获取
+        let value: any = null
         if (getComponentValue) {
-          values[`${compId}.${field}`] = getComponentValue(compId, field)
+          value = getComponentValue(compId, field)
         } else {
           const sourceComponent = allComponents.find(c => c.id === compId)
           if (sourceComponent) {
-            values[`${compId}.${field}`] = (sourceComponent.props as any)?.[field] || null
+            // 对于下拉列表，value和selectedValue都指向同一个值
+            if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
+              value = (sourceComponent.props as any)?.value || null
+            } else {
+              value = (sourceComponent.props as any)?.[field] || null
+            }
           }
         }
+        values[`${compId}.${field}`] = value
       }
     })
     return JSON.stringify(values)
-  }, [component.dataSource, allComponents, getComponentValue])
+  }, [component.dataSource, allComponents])
 
   useEffect(() => {
     loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [component.dataSource, dependentValuesKey, component.id])
+  }, [component.dataSource, dependentValuesKey, component.id, allComponents])
 
   const loadData = async () => {
     // 如果是条件数据源，需要根据条件选择数据源
@@ -66,6 +74,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }
 
     if (!datasetId || !tableName) {
+      setChartData(null)
       return
     }
 
@@ -79,6 +88,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       setChartData(result.data)
     } catch (error) {
       console.error('加载数据失败:', error)
+      setChartData(null)
     }
   }
 
@@ -98,14 +108,19 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         conditionValue = condition.staticValue
       } else if (condition.valueType === 'component' && condition.componentId) {
         // 从其他组件获取值
+        const field = condition.componentField || 'value'
         if (getComponentValue) {
-          conditionValue = getComponentValue(condition.componentId, condition.componentField)
+          conditionValue = getComponentValue(condition.componentId, field)
         } else {
           // 如果没有提供getComponentValue，尝试从allComponents中查找
           const sourceComponent = allComponents.find(c => c.id === condition.componentId)
-          if (sourceComponent && condition.componentField) {
-            // 尝试从组件的props或dataSource中获取值
-            conditionValue = (sourceComponent.props as any)?.[condition.componentField]
+          if (sourceComponent) {
+            // 对于下拉列表，value和selectedValue都指向同一个值
+            if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
+              conditionValue = (sourceComponent.props as any)?.value || null
+            } else {
+              conditionValue = (sourceComponent.props as any)?.[field] || null
+            }
           }
         }
       }

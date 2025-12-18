@@ -53,13 +53,15 @@ const ReportPreview: React.FC = () => {
     }
 
     // 根据组件类型和字段获取值
-    if (field === 'value') {
-      // 对于下拉列表和文本框，从props中获取值
+    const fieldName = field || 'value'
+    
+    // 对于下拉列表，value和selectedValue都指向同一个值
+    if (comp.type === 'dropdown' && (fieldName === 'value' || fieldName === 'selectedValue')) {
       return (comp.props as any)?.value || null
     }
-
-    // 其他字段的处理
-    return (comp.props as any)?.[field || 'value'] || null
+    
+    // 对于其他组件或字段，直接返回对应字段的值
+    return (comp.props as any)?.[fieldName] || null
   }
 
   if (loading) {
