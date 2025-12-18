@@ -13,6 +13,7 @@ interface ChartComponentProps {
 
 const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponents = [], getComponentValue, onComponentValueChange }) => {
   const [chartData, setChartData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
 
   // 获取所有依赖的组件值，用于监听变化
   const dependentValuesKey = useMemo(() => {
@@ -75,10 +76,12 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
     if (!datasetId || !tableName) {
       setChartData(null)
+      setLoading(false)
       return
     }
 
     try {
+      setLoading(true)
       const result = await dataService.getTableData({
         dataset_id: datasetId,
         table_name: tableName,
@@ -89,6 +92,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     } catch (error) {
       console.error('加载数据失败:', error)
       setChartData(null)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -185,8 +190,38 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   }
 
   const renderChart = () => {
+    // 检查数据源配置
+    let datasetId: number | undefined
+    let tableName: string | undefined
+
+    if (component.dataSource.type === 'conditional') {
+      if (component.dataSource.defaultSource) {
+        datasetId = component.dataSource.defaultSource.datasetId
+        tableName = component.dataSource.defaultSource.tableName
+      }
+    } else {
+      datasetId = component.dataSource.datasetId
+      tableName = component.dataSource.tableName
+    }
+
+    // 如果数据源未配置，显示提示
+    if (!datasetId || !tableName) {
+      return (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+          {component.dataSource.type === 'conditional' 
+            ? '请配置条件数据源（默认数据源）' 
+            : '请配置数据源'}
+        </div>
+      )
+    }
+
+    // 如果数据为空，显示提示
     if (!chartData || chartData.length === 0) {
-      return <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>暂无数据</div>
+      return (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+          暂无数据
+        </div>
+      )
     }
 
     const fields = component.dataSource.fields || {}
@@ -209,7 +244,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
     if (!hasRequiredFields()) {
       return (
-        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f' }}>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f', fontSize: '14px' }}>
           请配置字段映射：{component.type === 'line_chart' ? 'X轴字段和Y轴字段' : 
                           component.type === 'pie_chart' ? '分类字段和数值字段' :
                           component.type === 'tree_chart' ? '名称字段和数值字段' :
@@ -318,8 +353,14 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   }
 
   return (
-    <div style={{ height: '100%', width: '100%' }}>
-      {renderChart()}
+    <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+          加载中...
+        </div>
+      ) : (
+        renderChart()
+      )}
     </div>
   )
 }

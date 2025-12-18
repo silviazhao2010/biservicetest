@@ -79,7 +79,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
           height: '100%',
           border: isSelected ? '2px solid #1890ff' : '1px solid #d9d9d9',
         }}
-        bodyStyle={{ padding: '8px', height: '100%', overflow: 'hidden' }}
+        bodyStyle={{ padding: '8px', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         extra={
           isSelected && (
             <Button
