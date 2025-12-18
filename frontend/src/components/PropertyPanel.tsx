@@ -802,10 +802,27 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                                   componentTargetValueField: undefined,
                                 })}
                               >
-                                <Radio value="current">使用组件当前值</Radio>
-                                <Radio value="fixed">使用固定值匹配</Radio>
+                                <Radio value="current">使用组件当前值（需配置静态值作为比较目标）</Radio>
+                                <Radio value="fixed">使用固定值匹配（推荐）</Radio>
                               </Radio.Group>
+                              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                                {componentValueMode === 'current' 
+                                  ? '提示：此模式下，组件的当前值将与下方配置的静态值进行比较'
+                                  : '提示：此模式下，需要配置目标值，当组件的value等于目标值时匹配此条件'}
+                              </div>
                             </Form.Item>
+                            {componentValueMode === 'current' && (
+                              <Form.Item label="比较目标值（静态值）">
+                                <Input
+                                  value={source.condition.staticValue}
+                                  onChange={(e) => handleUpdateCondition(index, { staticValue: e.target.value })}
+                                  placeholder="输入要与组件value比较的值"
+                                />
+                                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                                  例如：如果组件value="产品A"时使用此数据源，则输入"产品A"
+                                </div>
+                              </Form.Item>
+                            )}
                             {componentValueMode === 'fixed' && (
                               <>
                                 <Form.Item label="目标值来源">

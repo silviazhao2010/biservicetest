@@ -105,11 +105,18 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     const operator = condition.operator || '='
     // 如果是组件值模式，根据模式选择比较值
     let conditionValue: any
-    if (condition.valueType === 'component' && condition.componentValueMode === 'fixed') {
-      // 使用固定值匹配模式
-      conditionValue = condition.componentTargetValue
+    if (condition.valueType === 'component') {
+      if (condition.componentValueMode === 'fixed') {
+        // 使用固定值匹配模式：比较组件的当前值和配置的目标值
+        conditionValue = condition.componentTargetValue
+      } else {
+        // 使用组件当前值模式：这种情况下，条件值应该是静态值（用于比较）
+        // 但实际上，当使用组件值时，应该使用fixed模式来明确指定目标值
+        // 这里保留兼容性，但建议使用fixed模式
+        conditionValue = condition.staticValue
+      }
     } else {
-      // 使用静态值或组件当前值
+      // 静态值类型
       conditionValue = condition.staticValue
     }
 
