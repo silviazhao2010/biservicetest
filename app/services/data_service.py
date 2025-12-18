@@ -104,4 +104,68 @@ class DataService:
             }
         except Exception as e:
             raise ValueError(f"Query error: {str(e)}")
+    
+    @staticmethod
+    def insert_table_data(dataset_id: int, table_name: str, data: Dict[str, Any]) -> Dict:
+        """插入数据到指定表"""
+        dataset = Dataset.get_by_id(dataset_id)
+        if not dataset:
+            raise ValueError(f"Dataset {dataset_id} not found")
+        
+        try:
+            conn = sqlite3.connect(dataset.database_path)
+            cursor = conn.cursor()
+            
+            # 获取表结构，确定哪些字段需要插入
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns_info = cursor.fetchall()
+            
+            # 构建字段名和值的列表
+            fields = []
+            values = []
+            placeholders = []
+            
+            for col_info in columns_info:
+                col_name = col_info[1]
+                col_type = col_info[2]
+                is_pk = bool(col_info[5])
+                has_default = col_info[4] is not None
+                
+                # 如果是主键且自增，跳过
+                if is_pk and col_type.upper() == 'INTEGER':
+                    continue
+                
+                # 如果数据中提供了该字段的值，使用提供的值
+                if col_name in data:
+                    fields.append(col_name)
+                    values.append(data[col_name])
+                    placeholders.append('?')
+                # 如果有默认值，可以跳过
+                elif has_default:
+                    continue
+                # 如果字段不允许为空且没有默认值，必须提供值
+                elif col_info[3] == 1 and not has_default:
+                    raise ValueError(f"Field {col_name} is required but not provided")
+            
+            if not fields:
+                raise ValueError("No fields to insert")
+            
+            # 构建INSERT语句
+            sql = f"INSERT INTO {table_name} ({', '.join(fields)}) VALUES ({', '.join(placeholders)})"
+            
+            cursor.execute(sql, values)
+            conn.commit()
+            
+            # 获取插入的行的ID（如果有主键）
+            inserted_id = cursor.lastrowid
+            
+            conn.close()
+            
+            return {
+                'success': True,
+                'inserted_id': inserted_id,
+                'message': 'Data inserted successfully',
+            }
+        except Exception as e:
+            raise ValueError(f"Insert error: {str(e)}")
 

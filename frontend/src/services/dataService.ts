@@ -27,5 +27,14 @@ export const dataService = {
     const response = await api.post('/data/table-data', data)
     return response.data
   },
+
+  insertData: async (data: {
+    dataset_id: number
+    table_name: string
+    data: Record<string, any>
+  }) => {
+    const response = await api.post('/data/insert', data)
+    return response.data
+  },
 }
 

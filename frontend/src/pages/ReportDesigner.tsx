@@ -135,6 +135,7 @@ const ReportDesigner: React.FC = () => {
               onSelectComponent={handleSelectComponent}
               onUpdateComponent={handleUpdateComponent}
               onDeleteComponent={handleDeleteComponent}
+              onAddComponent={(component) => setComponents([...components, component])}
             />
           </Content>
           <Sider width={300} style={{ background: '#fff', borderLeft: '1px solid #f0f0f0' }}>

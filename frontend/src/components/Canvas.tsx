@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { useDrop } from 'react-dnd'
 import ComponentWrapper from './ComponentWrapper'
 import type { ComponentConfig } from '../types'
@@ -9,6 +9,7 @@ interface CanvasProps {
   onSelectComponent: (component: ComponentConfig | null) => void
   onUpdateComponent: (id: string, updates: Partial<ComponentConfig>) => void
   onDeleteComponent: (id: string) => void
+  onAddComponent?: (component: ComponentConfig) => void
 }
 
 const Canvas: React.FC<CanvasProps> = ({
@@ -17,9 +18,76 @@ const Canvas: React.FC<CanvasProps> = ({
   onSelectComponent,
   onUpdateComponent,
   onDeleteComponent,
+  onAddComponent,
 }) => {
+  const canvasRef = useRef<HTMLDivElement>(null)
+
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'component',
+    accept: ['component', 'component-library'],
+    drop: (item: ComponentConfig | { type: ComponentConfig['type'] }, monitor) => {
+      if (!canvasRef.current) {
+        return
+      }
+
+      const offset = monitor.getClientOffset()
+      if (!offset) {
+        return
+      }
+
+      const canvasRect = canvasRef.current.getBoundingClientRect()
+      const x = offset.x - canvasRect.left
+      const y = offset.y - canvasRect.top
+
+      // 如果是从组件库拖拽过来的新组件
+      if ('type' in item && !('id' in item) && onAddComponent) {
+        const newComponent: ComponentConfig = {
+          id: `component-${Date.now()}`,
+          type: item.type,
+          position: {
+            x: Math.max(0, x - 200),
+            y: Math.max(0, y - 150),
+            width: 400,
+            height: 300,
+          },
+          style: {},
+          dataSource: {
+            type: 'table',
+            datasetId: 0,
+            fields: {},
+          },
+          props: {},
+        }
+        onAddComponent(newComponent)
+        return
+      }
+
+      // 如果是画布上已有的组件，更新位置
+      if ('id' in item) {
+        // 获取拖拽的初始偏移量（如果有）
+        const dragOffset = (item as any).dragOffset
+        let newX = x - item.position.width / 2
+        let newY = y - item.position.height / 2
+
+        // 如果有拖拽偏移量，使用更精确的计算
+        if (dragOffset) {
+          const initialOffset = monitor.getInitialClientOffset()
+          if (initialOffset) {
+            const deltaX = offset.x - initialOffset.x
+            const deltaY = offset.y - initialOffset.y
+            newX = item.position.x + deltaX
+            newY = item.position.y + deltaY
+          }
+        }
+
+        onUpdateComponent(item.id, {
+          position: {
+            ...item.position,
+            x: Math.max(0, newX),
+            y: Math.max(0, newY),
+          },
+        })
+      }
+    },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
@@ -27,7 +95,10 @@ const Canvas: React.FC<CanvasProps> = ({
 
   return (
     <div
-      ref={drop}
+      ref={(node) => {
+        drop(node)
+        canvasRef.current = node
+      }}
       style={{
         width: '100%',
         height: '100%',

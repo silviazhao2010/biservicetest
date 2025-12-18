@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { useDrag } from 'react-dnd'
 import { Card, Button } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
@@ -20,12 +20,30 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   onUpdate,
   onDelete,
 }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'component',
-    item: component,
+    item: () => {
+      // 记录拖拽开始时的偏移量
+      if (wrapperRef.current) {
+        const rect = wrapperRef.current.getBoundingClientRect()
+        return {
+          ...component,
+          dragOffset: {
+            x: rect.left,
+            y: rect.top,
+          },
+        }
+      }
+      return component
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    end: (item, monitor) => {
+      // 拖拽结束时，位置更新已经在 Canvas 的 drop 处理中完成
+    },
   }))
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -36,7 +54,10 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
 
   return (
     <div
-      ref={drag}
+      ref={(node) => {
+        drag(node)
+        wrapperRef.current = node
+      }}
       style={{
         position: 'absolute',
         left: component.position.x,
@@ -45,6 +66,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         height: component.position.height,
         opacity: isDragging ? 0.5 : 1,
         cursor: 'move',
+        zIndex: isSelected ? 1000 : 1,
       }}
       onMouseDown={handleMouseDown}
     >

@@ -61,3 +61,28 @@ def get_table_data():
             'message': str(e),
         }), 500
 
+@bp.route('/insert', methods=['POST'])
+def insert_data():
+    """插入数据到数据表"""
+    try:
+        data = request.get_json()
+        result = service.insert_table_data(
+            dataset_id=data['dataset_id'],
+            table_name=data['table_name'],
+            data=data['data'],
+        )
+        return jsonify({
+            'code': 200,
+            'data': result,
+        })
+    except ValueError as e:
+        return jsonify({
+            'code': 400,
+            'message': str(e),
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'code': 500,
+            'message': str(e),
+        }), 500
+

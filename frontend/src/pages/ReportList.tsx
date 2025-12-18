@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Space, message } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { reportService } from '../services/reportService'
 import type { Report } from '../types'
 
@@ -87,13 +87,21 @@ const ReportList: React.FC = () => {
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
         <h1>报表列表</h1>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/designer')}
-        >
-          新建报表
-        </Button>
+        <Space>
+          <Button
+            icon={<DatabaseOutlined />}
+            onClick={() => navigate('/database')}
+          >
+            数据库浏览
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/designer')}
+          >
+            新建报表
+          </Button>
+        </Space>
       </div>
       <Table
         columns={columns}

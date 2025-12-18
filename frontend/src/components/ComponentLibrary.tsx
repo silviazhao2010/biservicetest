@@ -1,4 +1,5 @@
 import React from 'react'
+import { useDrag } from 'react-dnd'
 import { Card, List } from 'antd'
 import { LineChartOutlined, PieChartOutlined, DownOutlined, EditOutlined, ApartmentOutlined } from '@ant-design/icons'
 import type { ComponentConfig } from '../types'
@@ -15,21 +16,41 @@ const componentTypes = [
   { type: 'tree_chart' as const, name: '树图', icon: <ApartmentOutlined /> },
 ]
 
+const ComponentItem: React.FC<{ item: typeof componentTypes[0], onAddComponent: (type: ComponentConfig['type']) => void }> = ({ item, onAddComponent }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'component-library',
+    item: { type: item.type },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }))
+
+  return (
+    <List.Item
+      ref={drag}
+      style={{
+        cursor: 'move',
+        padding: '12px',
+        opacity: isDragging ? 0.5 : 1,
+        backgroundColor: isDragging ? '#f0f0f0' : 'transparent',
+      }}
+      onClick={() => onAddComponent(item.type)}
+    >
+      <List.Item.Meta
+        avatar={item.icon}
+        title={item.name}
+      />
+    </List.Item>
+  )
+}
+
 const ComponentLibrary: React.FC<ComponentLibraryProps> = ({ onAddComponent }) => {
   return (
     <Card title="组件库" style={{ height: '100%', borderRadius: 0 }}>
       <List
         dataSource={componentTypes}
         renderItem={(item) => (
-          <List.Item
-            style={{ cursor: 'pointer', padding: '12px' }}
-            onClick={() => onAddComponent(item.type)}
-          >
-            <List.Item.Meta
-              avatar={item.icon}
-              title={item.name}
-            />
-          </List.Item>
+          <ComponentItem key={item.type} item={item} onAddComponent={onAddComponent} />
         )}
       />
     </Card>
