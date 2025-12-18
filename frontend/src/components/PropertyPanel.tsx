@@ -19,6 +19,17 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   const [modalTablesMap, setModalTablesMap] = useState<Record<number, DataTable[]>>({})
   const [componentDataSourceData, setComponentDataSourceData] = useState<Record<string, any[]>>({})
   
+  // 如果组件为空，显示提示信息
+  if (!component || !component.dataSource) {
+    return (
+      <Card title="属性配置" style={{ height: '100%', borderRadius: 0, overflow: 'auto' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', fontSize: '14px' }}>
+          请选择一个组件进行配置
+        </div>
+      </Card>
+    )
+  }
+  
   // 加载组件数据源数据
   const loadComponentDataSourceData = async (sourceComponent: ComponentConfig) => {
     if (!sourceComponent || !sourceComponent.dataSource.datasetId || !sourceComponent.dataSource.tableName) {
@@ -47,7 +58,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   
   // 监听条件数据源中的组件选择，自动加载数据
   useEffect(() => {
-    if (!component || !component.dataSource.conditionalSources || !conditionalSourceModalVisible) {
+    if (!component?.dataSource?.conditionalSources || !conditionalSourceModalVisible) {
       return
     }
     
@@ -73,7 +84,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }, [])
 
   useEffect(() => {
-    if (component) {
+    if (component?.dataSource) {
       form.setFieldsValue({
         datasetId: component.dataSource.datasetId,
         tableName: component.dataSource.tableName,
@@ -104,10 +115,14 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleDatasetChange = (datasetId: number) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     loadTables(datasetId)
     onUpdateComponent({
       dataSource: {
-        ...component!.dataSource,
+        ...component.dataSource,
         datasetId,
         tableName: undefined,
         fields: {},
@@ -116,11 +131,15 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleTableChange = (tableName: string) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     const table = tables.find(t => t.table_name === tableName)
     if (table) {
       onUpdateComponent({
         dataSource: {
-          ...component!.dataSource,
+          ...component.dataSource,
           tableName,
         },
       })
@@ -128,25 +147,19 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleFieldChange = (fieldKey: string, value: string) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     onUpdateComponent({
       dataSource: {
-        ...component!.dataSource,
+        ...component.dataSource,
         fields: {
-          ...component!.dataSource.fields,
+          ...component.dataSource.fields,
           [fieldKey]: value,
         },
       },
     })
-  }
-
-  if (!component) {
-    return (
-      <Card title="属性配置" style={{ height: '100%', borderRadius: 0 }}>
-        <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
-          请选择一个组件
-        </div>
-      </Card>
-    )
   }
 
   const getFieldConfig = () => {
@@ -177,6 +190,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
 
   // 获取当前使用的表（条件数据源时使用默认数据源的表）
   const getCurrentTable = () => {
+    if (!component?.dataSource) {
+      return null
+    }
+    
     if (component.dataSource.type === 'conditional') {
       // 条件数据源：使用默认数据源的表
       if (component.dataSource.defaultSource?.datasetId && component.dataSource.defaultSource?.tableName) {
@@ -205,19 +222,23 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
 
   const currentTable = getCurrentTable()
   const availableFields = currentTable?.schema_info.fields || []
+  const useConditionalSource = component?.dataSource?.type === 'conditional'
   
   // 如果条件数据源模式下没有可用字段，尝试加载默认数据源的表
   useEffect(() => {
     if (useConditionalSource && 
-        component.dataSource.defaultSource?.datasetId && 
+        component?.dataSource?.defaultSource?.datasetId && 
         component.dataSource.defaultSource?.tableName &&
         availableFields.length === 0) {
       loadModalTables(component.dataSource.defaultSource.datasetId)
     }
-  }, [useConditionalSource, component.dataSource.defaultSource, availableFields.length])
-  const useConditionalSource = component.dataSource.type === 'conditional'
+  }, [useConditionalSource, component?.dataSource?.defaultSource, availableFields.length])
 
   const handleDataSourceTypeChange = (type: 'table' | 'conditional') => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     if (type === 'conditional') {
       // 切换到条件数据源时，打开配置窗口
       onUpdateComponent({
@@ -245,6 +266,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleOpenConditionalSourceModal = async () => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     setConditionalSourceModalVisible(true)
     // 如果已有默认数据源，加载对应的表
     if (component.dataSource.defaultSource?.datasetId) {
@@ -264,6 +289,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleSaveConditionalSource = () => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     // 验证配置完整性
     if (component.dataSource.type === 'conditional') {
       // 检查是否有默认数据源
@@ -387,6 +416,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleAddConditionalSource = () => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     const newCondition: ConditionalDataSource = {
       condition: {
         operator: '=',
@@ -406,6 +439,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleRemoveConditionalSource = (index: number) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     const newSources = [...(component.dataSource.conditionalSources || [])]
     newSources.splice(index, 1)
     onUpdateComponent({
@@ -417,6 +454,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleUpdateConditionalSource = (index: number, updates: Partial<ConditionalDataSource>) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     const newSources = [...(component.dataSource.conditionalSources || [])]
     newSources[index] = { ...newSources[index], ...updates }
     onUpdateComponent({
@@ -428,6 +469,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const handleUpdateCondition = (sourceIndex: number, conditionUpdates: Partial<DataSourceCondition>) => {
+    if (!component?.dataSource) {
+      return
+    }
+    
     const newSources = [...(component.dataSource.conditionalSources || [])]
     newSources[sourceIndex] = {
       ...newSources[sourceIndex],
