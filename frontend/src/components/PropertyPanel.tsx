@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Switch, Radio } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Switch, Radio, Modal } from 'antd'
+import { PlusOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
 import type { ComponentConfig, Dataset, DataTable, ComponentRelation, ConditionalDataSource, DataSourceCondition } from '../types'
@@ -15,6 +15,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [tables, setTables] = useState<DataTable[]>([])
   const [form] = Form.useForm()
+  const [conditionalSourceModalVisible, setConditionalSourceModalVisible] = useState(false)
+  const [modalTablesMap, setModalTablesMap] = useState<Record<number, DataTable[]>>({})
 
   useEffect(() => {
     loadDatasets()
@@ -129,17 +131,19 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
 
   const handleDataSourceTypeChange = (type: 'table' | 'conditional') => {
     if (type === 'conditional') {
+      // 切换到条件数据源时，打开配置窗口
       onUpdateComponent({
         dataSource: {
           type: 'conditional',
           fields: component.dataSource.fields || {},
-          conditionalSources: [],
+          conditionalSources: component.dataSource.conditionalSources || [],
           defaultSource: {
             datasetId: component.dataSource.datasetId || 0,
             tableName: component.dataSource.tableName,
           },
         },
       })
+      setConditionalSourceModalVisible(true)
     } else {
       onUpdateComponent({
         dataSource: {
@@ -150,6 +154,45 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
         },
       })
     }
+  }
+
+  const handleOpenConditionalSourceModal = async () => {
+    setConditionalSourceModalVisible(true)
+    // 如果已有默认数据源，加载对应的表
+    if (component.dataSource.defaultSource?.datasetId) {
+      await loadModalTables(component.dataSource.defaultSource.datasetId)
+    }
+    // 加载所有条件数据源对应的表
+    const conditionalSources = component.dataSource.conditionalSources || []
+    for (const source of conditionalSources) {
+      if (source.datasetId) {
+        await loadModalTables(source.datasetId)
+      }
+    }
+  }
+
+  const handleCloseConditionalSourceModal = () => {
+    setConditionalSourceModalVisible(false)
+  }
+
+  const loadModalTables = async (datasetId: number) => {
+    // 如果已经加载过，直接返回
+    if (modalTablesMap[datasetId]) {
+      return
+    }
+    try {
+      const data = await datasetService.getTables(datasetId)
+      setModalTablesMap(prev => ({
+        ...prev,
+        [datasetId]: data,
+      }))
+    } catch (error) {
+      message.error('加载数据表失败')
+    }
+  }
+
+  const getModalTables = (datasetId: number): DataTable[] => {
+    return modalTablesMap[datasetId] || []
   }
 
   const handleAddConditionalSource = () => {
@@ -241,61 +284,162 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           </>
         ) : (
           <>
-            <Divider>默认数据源</Divider>
-            <Form.Item label="默认数据集">
+            <Form.Item label="条件数据源配置">
+              <Button
+                type="primary"
+                icon={<SettingOutlined />}
+                onClick={handleOpenConditionalSourceModal}
+                block
+              >
+                配置条件数据源
+              </Button>
+            </Form.Item>
+            {component.dataSource.conditionalSources && component.dataSource.conditionalSources.length > 0 && (
+              <Form.Item label="已配置条件">
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  共 {component.dataSource.conditionalSources.length} 个条件数据源
+                </div>
+              </Form.Item>
+            )}
+            {component.dataSource.defaultSource && (
+              <Form.Item label="默认数据源">
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {datasets.find(ds => ds.id === component.dataSource.defaultSource?.datasetId)?.name || '未设置'}
+                  {component.dataSource.defaultSource?.tableName && ` / ${component.dataSource.defaultSource.tableName}`}
+                </div>
+              </Form.Item>
+            )}
+          </>
+        )}
+
+        {!useConditionalSource && component.dataSource.datasetId && (
+          <Form.Item label="数据表">
+            <Select
+              value={component.dataSource.tableName}
+              onChange={handleTableChange}
+              placeholder="请选择数据表"
+            >
+              {tables.map(table => (
+                <Select.Option key={table.id} value={table.table_name}>
+                  {table.display_name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        )}
+
+        {(!useConditionalSource && component.dataSource.tableName) && getFieldConfig().map(field => (
+          <Form.Item key={field.key} label={field.label}>
+            <Select
+              value={component.dataSource.fields[field.key]}
+              onChange={(value) => handleFieldChange(field.key, value)}
+              placeholder={`请选择${field.label}`}
+            >
+              {availableFields.map(f => (
+                <Select.Option key={f.name} value={f.name}>
+                  {f.name} ({f.type})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        ))}
+
+        <Form.Item label="宽度">
+          <InputNumber
+            value={component.position.width}
+            onChange={(value) => onUpdateComponent({
+              position: { ...component.position, width: value || 400 },
+            })}
+            min={100}
+            max={2000}
+          />
+        </Form.Item>
+
+        <Form.Item label="高度">
+          <InputNumber
+            value={component.position.height}
+            onChange={(value) => onUpdateComponent({
+              position: { ...component.position, height: value || 300 },
+            })}
+            min={100}
+            max={2000}
+          />
+        </Form.Item>
+      </Form>
+
+      {/* 条件数据源配置Modal */}
+      <Modal
+        title="条件数据源配置"
+        open={conditionalSourceModalVisible}
+        onCancel={handleCloseConditionalSourceModal}
+        onOk={handleCloseConditionalSourceModal}
+        width={800}
+        footer={[
+          <Button key="cancel" onClick={handleCloseConditionalSourceModal}>
+            关闭
+          </Button>,
+        ]}
+      >
+        <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          <Divider>默认数据源</Divider>
+          <Form.Item label="默认数据集">
+            <Select
+              value={component.dataSource.defaultSource?.datasetId || undefined}
+              onChange={async (datasetId) => {
+                onUpdateComponent({
+                  dataSource: {
+                    ...component.dataSource,
+                    defaultSource: {
+                      ...component.dataSource.defaultSource,
+                      datasetId,
+                      tableName: undefined,
+                    } as any,
+                  },
+                })
+                if (datasetId) {
+                  await loadModalTables(datasetId)
+                }
+              }}
+              placeholder="请选择默认数据集"
+              style={{ width: '100%' }}
+            >
+              {datasets.map(ds => (
+                <Select.Option key={ds.id} value={ds.id}>
+                  {ds.name}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          {component.dataSource.defaultSource?.datasetId && (
+            <Form.Item label="默认数据表">
               <Select
-                value={component.dataSource.defaultSource?.datasetId || undefined}
-                onChange={(datasetId) => {
+                value={component.dataSource.defaultSource?.tableName}
+                onChange={(tableName) => {
                   onUpdateComponent({
                     dataSource: {
                       ...component.dataSource,
                       defaultSource: {
                         ...component.dataSource.defaultSource,
-                        datasetId,
-                        tableName: undefined,
+                        tableName,
                       } as any,
                     },
                   })
-                  if (datasetId) {
-                    loadTables(datasetId)
-                  }
                 }}
-                placeholder="请选择默认数据集"
+                placeholder="请选择默认数据表"
+                style={{ width: '100%' }}
               >
-                {datasets.map(ds => (
-                  <Select.Option key={ds.id} value={ds.id}>
-                    {ds.name}
+                {getModalTables(component.dataSource.defaultSource?.datasetId || 0).map(table => (
+                  <Select.Option key={table.id} value={table.table_name}>
+                    {table.display_name}
                   </Select.Option>
                 ))}
               </Select>
             </Form.Item>
-            {component.dataSource.defaultSource?.datasetId && (
-              <Form.Item label="默认数据表">
-                <Select
-                  value={component.dataSource.defaultSource?.tableName}
-                  onChange={(tableName) => {
-                    onUpdateComponent({
-                      dataSource: {
-                        ...component.dataSource,
-                        defaultSource: {
-                          ...component.dataSource.defaultSource,
-                          tableName,
-                        } as any,
-                      },
-                    })
-                  }}
-                  placeholder="请选择默认数据表"
-                >
-                  {tables.map(table => (
-                    <Select.Option key={table.id} value={table.table_name}>
-                      {table.display_name}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            )}
-            <Divider>条件数据源</Divider>
-            {(component.dataSource.conditionalSources || []).map((source, index) => (
+          )}
+
+          <Divider>条件数据源</Divider>
+          {(component.dataSource.conditionalSources || []).map((source, index) => {
+            return (
               <Card
                 key={index}
                 size="small"
@@ -386,10 +530,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                   <Form.Item label="数据源">
                     <Select
                       value={source.datasetId}
-                      onChange={(datasetId) => {
+                      onChange={async (datasetId) => {
                         handleUpdateConditionalSource(index, { datasetId })
                         if (datasetId) {
-                          loadTables(datasetId)
+                          await loadModalTables(datasetId)
                         }
                       }}
                       placeholder="选择数据集"
@@ -410,98 +554,28 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         placeholder="选择数据表"
                         style={{ width: '100%' }}
                       >
-                        {tables.map(table => (
-                          <Select.Option key={table.id} value={table.table_name}>
-                            {table.display_name}
-                          </Select.Option>
-                        ))}
+                      {getModalTables(source.datasetId).map(table => (
+                        <Select.Option key={table.id} value={table.table_name}>
+                          {table.display_name}
+                        </Select.Option>
+                      ))}
                       </Select>
                     </Form.Item>
                   )}
                 </Space>
               </Card>
-            ))}
-            <Button
-              type="dashed"
-              onClick={handleAddConditionalSource}
-              block
-              icon={<PlusOutlined />}
-            >
-              添加条件数据源
-            </Button>
-          </>
-        )}
-
-        {!useConditionalSource && component.dataSource.datasetId && (
-          <Form.Item label="数据表">
-            <Select
-              value={component.dataSource.tableName}
-              onChange={handleTableChange}
-              placeholder="请选择数据表"
-            >
-              {tables.map(table => (
-                <Select.Option key={table.id} value={table.table_name}>
-                  {table.display_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        )}
-
-        {component.dataSource.datasetId && (
-          <Form.Item label="数据表">
-            <Select
-              value={component.dataSource.tableName}
-              onChange={handleTableChange}
-              placeholder="请选择数据表"
-            >
-              {tables.map(table => (
-                <Select.Option key={table.id} value={table.table_name}>
-                  {table.display_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        )}
-
-        {component.dataSource.tableName && getFieldConfig().map(field => (
-          <Form.Item key={field.key} label={field.label}>
-            <Select
-              value={component.dataSource.fields[field.key]}
-              onChange={(value) => handleFieldChange(field.key, value)}
-              placeholder={`请选择${field.label}`}
-            >
-              {availableFields.map(f => (
-                <Select.Option key={f.name} value={f.name}>
-                  {f.name} ({f.type})
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        ))}
-
-        <Form.Item label="宽度">
-          <InputNumber
-            value={component.position.width}
-            onChange={(value) => onUpdateComponent({
-              position: { ...component.position, width: value || 400 },
-            })}
-            min={100}
-            max={2000}
-          />
-        </Form.Item>
-
-        <Form.Item label="高度">
-          <InputNumber
-            value={component.position.height}
-            onChange={(value) => onUpdateComponent({
-              position: { ...component.position, height: value || 300 },
-            })}
-            min={100}
-            max={2000}
-          />
-        </Form.Item>
-      </Form>
+            )
+          })}
+          <Button
+            type="dashed"
+            onClick={handleAddConditionalSource}
+            block
+            icon={<PlusOutlined />}
+          >
+            添加条件数据源
+          </Button>
+        </div>
+      </Modal>
     </Card>
   )
 }
