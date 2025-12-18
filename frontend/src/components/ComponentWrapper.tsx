@@ -29,27 +29,19 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'component',
     item: () => {
-      // 记录拖拽开始时的位置信息
-      if (wrapperRef.current) {
-        const rect = wrapperRef.current.getBoundingClientRect()
-        return {
-          ...component,
-          dragOffset: {
-            x: rect.left,
-            y: rect.top,
-          },
-        }
+      // 返回组件信息，react-dnd会自动处理位置信息
+      return {
+        ...component,
       }
-      return component
     },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
     end: (item, monitor) => {
       // 拖拽结束时，位置更新已经在 Canvas 的 drop 处理中完成
-      // 确保组件不会消失
+      // 如果拖拽没有成功放置，确保组件位置不变
       if (!monitor.didDrop()) {
-        // 如果拖拽没有成功放置，可以在这里处理
+        // 组件位置已经在drop中更新，这里不需要额外处理
       }
     },
   }))
@@ -75,6 +67,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         opacity: isDragging ? 0.5 : 1,
         cursor: 'move',
         zIndex: isSelected ? 1000 : isDragging ? 999 : 1,
+        visibility: isDragging ? 'visible' : 'visible',
       }}
       onMouseDown={handleMouseDown}
     >

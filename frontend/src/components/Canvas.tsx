@@ -130,42 +130,54 @@ const Canvas: React.FC<CanvasProps> = ({
 
       // 如果是画布上已有的组件，更新位置
       if ('id' in item) {
-        // 获取画布的滚动位置
-        const scrollLeft = canvasRef.current?.scrollLeft || 0
-        const scrollTop = canvasRef.current?.scrollTop || 0
-        
         // 获取拖拽的初始偏移量（如果有）
         const dragOffset = (item as any).dragOffset
         const initialOffset = monitor.getInitialClientOffset()
+        const initialSourceClientOffset = monitor.getInitialSourceClientOffset()
         
         let newX: number
         let newY: number
 
-        // 如果有拖拽偏移量和初始位置，使用更精确的计算
-        if (dragOffset && initialOffset) {
-          // 计算鼠标移动的增量
+        // 如果有初始位置信息，使用更精确的计算
+        if (initialOffset && initialSourceClientOffset) {
+          // 计算鼠标相对于组件初始位置的移动距离
           const deltaX = offset.x - initialOffset.x
           const deltaY = offset.y - initialOffset.y
           
-          // 计算组件在画布中的原始位置（考虑滚动）
-          const originalX = dragOffset.x - canvasRect.left + scrollLeft
-          const originalY = dragOffset.y - canvasRect.top + scrollTop
+          // 组件在画布中的原始位置
+          const originalX = item.position.x
+          const originalY = item.position.y
           
           // 新位置 = 原始位置 + 移动增量
           newX = originalX + deltaX
           newY = originalY + deltaY
+        } else if (dragOffset && initialOffset) {
+          // 备用方案：使用dragOffset计算
+          const deltaX = offset.x - initialOffset.x
+          const deltaY = offset.y - initialOffset.y
+          
+          // 计算组件在画布中的原始位置（考虑滚动）
+          const originalCanvasX = dragOffset.x - canvasRect.left + scrollLeft
+          const originalCanvasY = dragOffset.y - canvasRect.top + scrollTop
+          
+          newX = originalCanvasX + deltaX
+          newY = originalCanvasY + deltaY
         } else {
           // 如果没有初始偏移量，使用鼠标位置减去组件中心偏移
           newX = x - item.position.width / 2
           newY = y - item.position.height / 2
         }
 
-        // 确保位置不为负数
+        // 确保位置不为负数，并且组件不会超出合理范围
+        const finalX = Math.max(0, newX)
+        const finalY = Math.max(0, newY)
+        
+        // 更新组件位置
         onUpdateComponent(item.id, {
           position: {
             ...item.position,
-            x: Math.max(0, newX),
-            y: Math.max(0, newY),
+            x: finalX,
+            y: finalY,
           },
         })
       }
