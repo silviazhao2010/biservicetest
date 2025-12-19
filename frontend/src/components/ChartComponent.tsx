@@ -393,17 +393,44 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         )
       
       case 'tree_chart':
+        const selectedNodePath = (component.props as any)?.selectedNodePath || []
         return (
           <ReactECharts
             option={{
               series: [{
                 type: 'tree',
-                data: buildTreeData(chartData, fields),
+                data: buildTreeData(chartData, fields, selectedNodePath),
                 layout: 'orthogonal',
                 orient: 'TB',
+                label: {
+                  position: 'left',
+                  verticalAlign: 'middle',
+                  align: 'right',
+                },
+                leaves: {
+                  label: {
+                    position: 'right',
+                    verticalAlign: 'middle',
+                    align: 'left',
+                  },
+                },
+                emphasis: {
+                  focus: 'descendant',
+                },
+                expandAndCollapse: true,
+                initialTreeDepth: 2,
               }],
             }}
             style={{ height: '100%', width: '100%' }}
+            onEvents={{
+              click: (params: any) => {
+                if (params.data && onComponentValueChange) {
+                  // params.data 中已经包含了 path 属性（在 buildTreeData 中添加）
+                  const nodePath = params.data.path || []
+                  onComponentValueChange(component.id, nodePath, 'selectedNodePath')
+                }
+              },
+            }}
           />
         )
       
@@ -412,15 +439,70 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }
   }
 
-  const buildTreeData = (data: any[], fields: Record<string, string>) => {
-    // 简单的树形数据构建示例
-    return [{
+  const buildTreeData = (data: any[], fields: Record<string, string>, selectedNodePath: string[] = []) => {
+    // 递归函数：标记节点是否在选中路径中，并添加路径信息
+    const markNode = (node: any, path: string[]): any => {
+      const currentPath = [...path, node.name]
+      const isSelected = selectedNodePath.length > 0 && 
+        selectedNodePath.length === currentPath.length &&
+        selectedNodePath.every((name, index) => name === currentPath[index])
+      const isInPath = selectedNodePath.length > 0 && 
+        currentPath.length <= selectedNodePath.length &&
+        currentPath.every((name, index) => name === selectedNodePath[index])
+      
+      const nodeStyle: any = {}
+      if (isSelected) {
+        // 选中的节点：高亮显示
+        nodeStyle.itemStyle = {
+          color: '#1890ff',
+          borderColor: '#1890ff',
+          borderWidth: 2,
+        }
+        nodeStyle.label = {
+          color: '#1890ff',
+          fontWeight: 'bold',
+        }
+      } else if (isInPath) {
+        // 在选中路径上的节点：半高亮
+        nodeStyle.itemStyle = {
+          color: '#91d5ff',
+          borderColor: '#91d5ff',
+          borderWidth: 1,
+        }
+        nodeStyle.label = {
+          color: '#1890ff',
+        }
+      }
+      
+      // 添加路径信息到节点
+      const nodeWithPath = {
+        ...node,
+        path: currentPath,
+        ...nodeStyle,
+      }
+      
+      if (node.children && node.children.length > 0) {
+        return {
+          ...nodeWithPath,
+          children: node.children.map((child: any) => markNode(child, currentPath)),
+        }
+      }
+      
+      return nodeWithPath
+    }
+    
+    // 构建树形数据
+    const rootNode = {
       name: '根节点',
+      value: data.reduce((sum: number, item: any) => sum + (Number(item[fields.value || '']) || 0), 0),
       children: data.map((item: any) => ({
         name: item[fields.name || ''] || '节点',
         value: item[fields.value || ''],
       })),
-    }]
+    }
+    
+    // 标记选中路径
+    return [markNode(rootNode, [])]
   }
 
   // 确保总是有内容显示，避免空白
