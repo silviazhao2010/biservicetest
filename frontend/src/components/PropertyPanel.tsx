@@ -1267,98 +1267,101 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         
                         return (
                           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0' }}>
-                            <Form.Item label="目标值来源">
-                              <Radio.Group
-                                value={condition.componentTargetValueSource || 'input'}
-                                onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { 
-                                  componentTargetValueSource: e.target.value,
-                                  componentTargetValue: undefined,
-                                  componentTargetValueField: undefined,
-                                })}
-                              >
-                                <Radio value="input">手动输入</Radio>
-                                <Radio value="datasource" disabled={!canUseDataSource}>
-                                  从数据源选择
-                                  {!canUseDataSource && (
-                                    <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
-                                      (需要来源组件配置数据源)
-                                    </span>
-                                  )}
-                                </Radio>
-                              </Radio.Group>
-                            </Form.Item>
-                            {condition.componentTargetValueSource === 'input' ? (
-                              <Form.Item label="目标值">
-                                <Input
-                                  value={condition.componentTargetValue}
-                                  onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: e.target.value })}
-                                  placeholder="输入要匹配的值"
-                                />
+                            <Space direction="horizontal" style={{ width: '100%' }} wrap align="baseline">
+                              <Form.Item label="目标值来源" style={{ marginBottom: 0, width: '200px' }}>
+                                <Radio.Group
+                                  value={condition.componentTargetValueSource || 'input'}
+                                  onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { 
+                                    componentTargetValueSource: e.target.value,
+                                    componentTargetValue: undefined,
+                                    componentTargetValueField: undefined,
+                                  })}
+                                  size="small"
+                                >
+                                  <Radio value="input">手动输入</Radio>
+                                  <Radio value="datasource" disabled={!canUseDataSource}>
+                                    从数据源选择
+                                    {!canUseDataSource && (
+                                      <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
+                                        (需要来源组件配置数据源)
+                                      </span>
+                                    )}
+                                  </Radio>
+                                </Radio.Group>
                               </Form.Item>
+                              {condition.componentTargetValueSource === 'input' ? (
+                                <Form.Item label="目标值" style={{ marginBottom: 0, flex: 1, minWidth: '150px' }}>
+                                  <Input
+                                    value={condition.componentTargetValue}
+                                    onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: e.target.value })}
+                                    placeholder="输入要匹配的值"
+                                  />
+                                </Form.Item>
                               ) : condition.componentTargetValueSource === 'datasource' ? (
-                              (() => {
-                                // 如果表还没有加载，尝试加载
-                                let currentTable = availableTable
-                                if (!currentTable && sourceComponent?.dataSource.datasetId) {
-                                  const availableTables = modalTablesMap[sourceComponent.dataSource.datasetId] || []
-                                  if (availableTables.length > 0) {
-                                    currentTable = availableTables[0]
-                                  } else {
-                                    // 如果表列表为空，尝试加载
-                                    loadModalTables(sourceComponent.dataSource.datasetId)
+                                (() => {
+                                  // 如果表还没有加载，尝试加载
+                                  let currentTable = availableTable
+                                  if (!currentTable && sourceComponent?.dataSource.datasetId) {
+                                    const availableTables = modalTablesMap[sourceComponent.dataSource.datasetId] || []
+                                    if (availableTables.length > 0) {
+                                      currentTable = availableTables[0]
+                                    } else {
+                                      // 如果表列表为空，尝试加载
+                                      loadModalTables(sourceComponent.dataSource.datasetId)
+                                    }
                                   }
-                                }
-                                
-                                return currentTable ? (
-                                  <>
-                                    <Form.Item label="选择字段">
-                                      <Select
-                                        value={condition.componentTargetValueField}
-                                        onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { 
-                                          componentTargetValueField: value,
-                                          componentTargetValue: undefined,
-                                        })}
-                                        placeholder="选择字段"
-                                        style={{ width: '100%' }}
-                                      >
-                                        {currentTable.schema_info.fields.map((field: any) => (
-                                          <Select.Option key={field.name} value={field.name}>
-                                            {field.name} ({field.type})
-                                          </Select.Option>
-                                        ))}
-                                      </Select>
-                                    </Form.Item>
-                                    {condition.componentTargetValueField && (
-                                      <Form.Item label="选择值">
+                                  
+                                  return currentTable ? (
+                                    <>
+                                      <Form.Item label="选择字段" style={{ marginBottom: 0, flex: 1, minWidth: '150px' }}>
                                         <Select
-                                          value={condition.componentTargetValue}
-                                          onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: value })}
-                                          placeholder="从数据源选择值"
-                                          showSearch
-                                          filterOption={(input, option) =>
-                                            String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-                                          }
+                                          value={condition.componentTargetValueField}
+                                          onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { 
+                                            componentTargetValueField: value,
+                                            componentTargetValue: undefined,
+                                          })}
+                                          placeholder="选择字段"
                                           style={{ width: '100%' }}
                                         >
-                                          {Array.from(new Set(componentData.map((item: any) => {
-                                            const fieldValue = item[condition.componentTargetValueField || '']
-                                            return fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : null
-                                          }).filter((v): v is string => v !== null))).map((value: string, idx: number) => (
-                                            <Select.Option key={idx} value={value}>
-                                              {value}
+                                          {currentTable.schema_info.fields.map((field: any) => (
+                                            <Select.Option key={field.name} value={field.name}>
+                                              {field.name} ({field.type})
                                             </Select.Option>
                                           ))}
                                         </Select>
                                       </Form.Item>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div style={{ padding: '12px', textAlign: 'center', color: '#999', fontSize: '12px' }}>
-                                    正在加载数据表结构，请稍候...
-                                  </div>
-                                )
-                              })()
-                            ) : null}
+                                      {condition.componentTargetValueField && (
+                                        <Form.Item label="选择值" style={{ marginBottom: 0, flex: 1, minWidth: '150px' }}>
+                                          <Select
+                                            value={condition.componentTargetValue}
+                                            onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: value })}
+                                            placeholder="从数据源选择值"
+                                            showSearch
+                                            filterOption={(input, option) =>
+                                              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+                                            }
+                                            style={{ width: '100%' }}
+                                          >
+                                            {Array.from(new Set(componentData.map((item: any) => {
+                                              const fieldValue = item[condition.componentTargetValueField || '']
+                                              return fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : null
+                                            }).filter((v): v is string => v !== null))).map((value: string, idx: number) => (
+                                              <Select.Option key={idx} value={value}>
+                                                {value}
+                                              </Select.Option>
+                                            ))}
+                                          </Select>
+                                        </Form.Item>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#999', fontSize: '12px', flex: 1 }}>
+                                      正在加载数据表结构，请稍候...
+                                    </div>
+                                  )
+                                })()
+                              ) : null}
+                            </Space>
                           </div>
                         )
                       })()}
@@ -1390,56 +1393,58 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                     添加子条件
                   </Button>
                   <Divider style={{ margin: '16px 0' }}>数据源配置</Divider>
-                  <Form.Item label="数据集">
-                    <Select
-                      value={source.datasetId}
-                      onChange={async (datasetId) => {
-                        handleUpdateConditionalSource(index, { datasetId })
-                        if (datasetId) {
-                          await loadModalTables(datasetId)
-                        }
-                      }}
-                      placeholder="选择数据集"
-                      style={{ width: '100%' }}
-                    >
-                      {datasets.map(ds => (
-                        <Select.Option key={ds.id} value={ds.id}>
-                          {ds.name}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                  {source.datasetId && (
-                    <Form.Item label="数据表">
+                  <Space direction="horizontal" style={{ width: '100%' }} wrap align="baseline">
+                    <Form.Item label="数据集" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
                       <Select
-                        value={source.tableName}
-                        onChange={(tableName) => {
-                          handleUpdateConditionalSource(index, { tableName: tableName || undefined })
-                          // 如果选择了数据表，检查条件字段是否在新表中存在
-                          // 为了向后兼容，支持旧的 condition 格式
-                          const conditions = source.conditions || (source.condition ? [source.condition] : [])
-                          conditions.forEach((cond, condIdx) => {
-                            if (tableName && cond.field) {
-                              const newTable = getModalTables(source.datasetId).find(t => t.table_name === tableName)
-                              const fieldExists = newTable?.schema_info.fields.some((f: any) => f.name === cond.field)
-                              if (!fieldExists) {
-                                handleUpdateSubCondition(index, condIdx, { field: undefined })
-                              }
-                            }
-                          })
+                        value={source.datasetId}
+                        onChange={async (datasetId) => {
+                          handleUpdateConditionalSource(index, { datasetId })
+                          if (datasetId) {
+                            await loadModalTables(datasetId)
+                          }
                         }}
-                        placeholder="选择数据表（可选，系统可自动选择）"
-                        allowClear
+                        placeholder="选择数据集"
                         style={{ width: '100%' }}
                       >
-                        {getModalTables(source.datasetId).map(table => (
-                          <Select.Option key={table.id} value={table.table_name}>
-                            {table.display_name}
+                        {datasets.map(ds => (
+                          <Select.Option key={ds.id} value={ds.id}>
+                            {ds.name}
                           </Select.Option>
                         ))}
                       </Select>
                     </Form.Item>
-                  )}
+                    {source.datasetId && (
+                      <Form.Item label="数据表" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
+                        <Select
+                          value={source.tableName}
+                          onChange={(tableName) => {
+                            handleUpdateConditionalSource(index, { tableName: tableName || undefined })
+                            // 如果选择了数据表，检查条件字段是否在新表中存在
+                            // 为了向后兼容，支持旧的 condition 格式
+                            const conditions = source.conditions || (source.condition ? [source.condition] : [])
+                            conditions.forEach((cond, condIdx) => {
+                              if (tableName && cond.field) {
+                                const newTable = getModalTables(source.datasetId).find(t => t.table_name === tableName)
+                                const fieldExists = newTable?.schema_info.fields.some((f: any) => f.name === cond.field)
+                                if (!fieldExists) {
+                                  handleUpdateSubCondition(index, condIdx, { field: undefined })
+                                }
+                              }
+                            })
+                          }}
+                          placeholder="选择数据表（可选，系统可自动选择）"
+                          allowClear
+                          style={{ width: '100%' }}
+                        >
+                          {getModalTables(source.datasetId).map(table => (
+                            <Select.Option key={table.id} value={table.table_name}>
+                              {table.display_name}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    )}
+                  </Space>
                 </Space>
               </Card>
             )
