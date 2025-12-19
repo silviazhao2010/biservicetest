@@ -14,6 +14,16 @@ interface ChartComponentProps {
 const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponents = [], getComponentValue, onComponentValueChange }) => {
   const [chartData, setChartData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // 如果组件无效，显示错误信息
+  if (!component) {
+    return (
+      <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
+        组件未定义
+      </div>
+    )
+  }
 
   // 获取所有依赖的组件值，用于监听变化
   const dependentValuesKey = useMemo(() => {
@@ -46,7 +56,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       }
     })
     return JSON.stringify(values)
-  }, [component.dataSource, component.id])
+  }, [component?.dataSource, component?.id, allComponents, getComponentValue])
 
   // 使用 useRef 来跟踪组件数据源，避免不必要的重新加载
   const prevDataSourceRef = useRef<string>('')
@@ -56,63 +66,80 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   useEffect(() => {
     // 检查组件和数据源是否存在
     if (!component || !component.dataSource) {
+      setChartData(null)
+      setLoading(false)
+      setError(null)
       return
     }
 
-    // 检查数据源或组件ID是否真的发生了变化
-    const currentDataSourceKey = JSON.stringify(component.dataSource)
-    const dataSourceChanged = prevDataSourceRef.current !== currentDataSourceKey
-    const dependentValuesChanged = prevDependentValuesKeyRef.current !== dependentValuesKey
-    const componentIdChanged = prevComponentIdRef.current !== component.id
-    
-    // 初始化时也要加载数据
-    if (prevComponentIdRef.current === '') {
-      prevDataSourceRef.current = currentDataSourceKey
-      prevDependentValuesKeyRef.current = dependentValuesKey
-      prevComponentIdRef.current = component.id
-      loadData()
-      return
-    }
-    
-    // 只有在真正变化时才加载数据
-    if (dataSourceChanged || dependentValuesChanged || componentIdChanged) {
-      prevDataSourceRef.current = currentDataSourceKey
-      prevDependentValuesKeyRef.current = dependentValuesKey
-      prevComponentIdRef.current = component.id
-      loadData()
+    try {
+      // 检查数据源或组件ID是否真的发生了变化
+      const currentDataSourceKey = JSON.stringify(component.dataSource)
+      const dataSourceChanged = prevDataSourceRef.current !== currentDataSourceKey
+      const dependentValuesChanged = prevDependentValuesKeyRef.current !== dependentValuesKey
+      const componentIdChanged = prevComponentIdRef.current !== component.id
+      
+      // 初始化时也要加载数据
+      if (prevComponentIdRef.current === '') {
+        prevDataSourceRef.current = currentDataSourceKey
+        prevDependentValuesKeyRef.current = dependentValuesKey
+        prevComponentIdRef.current = component.id
+        loadData()
+        return
+      }
+      
+      // 只有在真正变化时才加载数据
+      if (dataSourceChanged || dependentValuesChanged || componentIdChanged) {
+        prevDataSourceRef.current = currentDataSourceKey
+        prevDependentValuesKeyRef.current = dependentValuesKey
+        prevComponentIdRef.current = component.id
+        loadData()
+      }
+    } catch (error) {
+      console.error('useEffect 中出错:', error)
+      setError('组件配置错误')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [component?.dataSource, dependentValuesKey, component?.id])
 
   const loadData = async () => {
-    // 如果是条件数据源，需要根据条件选择数据源
-    let datasetId: number | undefined
-    let tableName: string | undefined
-
-    if (component.dataSource.type === 'conditional') {
-      // 评估条件，选择合适的数据源
-      const selectedSource = evaluateConditionalSource(component)
-      if (selectedSource) {
-        datasetId = selectedSource.datasetId
-        tableName = selectedSource.tableName
-      } else if (component.dataSource.defaultSource) {
-        // 使用默认数据源
-        datasetId = component.dataSource.defaultSource.datasetId
-        tableName = component.dataSource.defaultSource.tableName
-      }
-    } else {
-      // 固定数据源
-      datasetId = component.dataSource.datasetId
-      tableName = component.dataSource.tableName
-    }
-
-    if (!datasetId || !tableName) {
-      setChartData(null)
-      setLoading(false)
-      return
-    }
-
     try {
+      setError(null)
+      
+      // 检查组件和数据源
+      if (!component || !component.dataSource) {
+        setChartData(null)
+        setLoading(false)
+        return
+      }
+      
+      // 如果是条件数据源，需要根据条件选择数据源
+      let datasetId: number | undefined
+      let tableName: string | undefined
+
+      if (component.dataSource.type === 'conditional') {
+        // 评估条件，选择合适的数据源
+        const selectedSource = evaluateConditionalSource(component)
+        if (selectedSource) {
+          datasetId = selectedSource.datasetId
+          tableName = selectedSource.tableName
+        } else if (component.dataSource.defaultSource) {
+          // 使用默认数据源
+          datasetId = component.dataSource.defaultSource.datasetId
+          tableName = component.dataSource.defaultSource.tableName
+        }
+      } else {
+        // 固定数据源
+        datasetId = component.dataSource.datasetId
+        tableName = component.dataSource.tableName
+      }
+
+      if (!datasetId || !tableName) {
+        setChartData(null)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       const result = await dataService.getTableData({
         dataset_id: datasetId,
@@ -120,9 +147,11 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         filters: component.dataSource.filters || [],
       })
 
-      setChartData(result.data)
-    } catch (error) {
+      setChartData(result.data || [])
+      setError(null)
+    } catch (error: any) {
       console.error('加载数据失败:', error)
+      setError(error?.message || '加载数据失败')
       setChartData(null)
     } finally {
       setLoading(false)
@@ -284,12 +313,13 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }
 
     if (!hasRequiredFields()) {
-      return (
-        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f', fontSize: '14px' }}>
-          请配置字段映射：{component.type === 'line_chart' ? 'X轴字段和Y轴字段' : 
+      const fieldMessage = component.type === 'line_chart' ? 'X轴字段和Y轴字段' : 
                           component.type === 'pie_chart' ? '分类字段和数值字段' :
                           component.type === 'tree_chart' ? '名称字段和数值字段' :
-                          component.type === 'dropdown' ? '选项字段' : '字段'}
+                          component.type === 'dropdown' ? '选项字段' : '字段'
+      return (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f', fontSize: '14px' }}>
+          请配置字段映射：{fieldMessage}
         </div>
       )
     }
@@ -394,13 +424,28 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   }
 
   // 确保总是有内容显示，避免空白
-  const chartContent = renderChart()
+  let chartContent: React.ReactNode = null
+  
+  try {
+    chartContent = renderChart()
+  } catch (error: any) {
+    console.error('渲染图表时出错:', error)
+    chartContent = (
+      <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f', fontSize: '14px' }}>
+        渲染错误: {error?.message || '未知错误'}
+      </div>
+    )
+  }
   
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100px' }}>
       {loading ? (
         <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
           加载中...
+        </div>
+      ) : error ? (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#ff4d4f', fontSize: '14px' }}>
+          {error}
         </div>
       ) : chartContent ? (
         chartContent

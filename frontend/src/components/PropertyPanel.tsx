@@ -19,15 +19,20 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   const [modalTablesMap, setModalTablesMap] = useState<Record<number, DataTable[]>>({})
   const [componentDataSourceData, setComponentDataSourceData] = useState<Record<string, any[]>>({})
   
-  // 如果组件为空，显示提示信息
-  if (!component || !component.dataSource) {
-    return (
-      <Card title="属性配置" style={{ height: '100%', borderRadius: 0, overflow: 'auto' }}>
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', fontSize: '14px' }}>
-          请选择一个组件进行配置
-        </div>
-      </Card>
-    )
+  // 加载模态框中的表数据（必须在所有 useEffect 之前定义）
+  const loadModalTables = async (datasetId: number) => {
+    if (modalTablesMap[datasetId]) {
+      return // 已经加载过
+    }
+    try {
+      const data = await datasetService.getTables(datasetId)
+      setModalTablesMap(prev => ({
+        ...prev,
+        [datasetId]: data,
+      }))
+    } catch (error) {
+      message.error('加载数据表失败')
+    }
   }
   
   // 加载组件数据源数据
@@ -220,20 +225,39 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     }
   }
 
-  const currentTable = getCurrentTable()
-  const availableFields = currentTable?.schema_info.fields || []
-  const useConditionalSource = component?.dataSource?.type === 'conditional'
-  
   // 如果条件数据源模式下没有可用字段，尝试加载默认数据源的表
   useEffect(() => {
-    if (useConditionalSource && 
-        component?.dataSource?.defaultSource?.datasetId && 
-        component.dataSource.defaultSource?.tableName &&
-        availableFields.length === 0) {
-      loadModalTables(component.dataSource.defaultSource.datasetId)
+    if (!component?.dataSource) {
+      return
     }
-  }, [useConditionalSource, component?.dataSource?.defaultSource, availableFields.length])
-
+    
+    const useConditionalSource = component.dataSource.type === 'conditional'
+    if (useConditionalSource && 
+        component.dataSource.defaultSource?.datasetId && 
+        component.dataSource.defaultSource?.tableName) {
+      const currentTable = getCurrentTable()
+      const availableFields = currentTable?.schema_info.fields || []
+      if (availableFields.length === 0) {
+        loadModalTables(component.dataSource.defaultSource.datasetId)
+      }
+    }
+  }, [component?.dataSource?.type, component?.dataSource?.defaultSource, component?.dataSource?.tableName, tables.length, modalTablesMap])
+  
+  // 如果组件为空，显示提示信息（必须在所有 hooks 之后）
+  if (!component || !component.dataSource) {
+    return (
+      <Card title="属性配置" style={{ height: '100%', borderRadius: 0, overflow: 'auto' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', fontSize: '14px' }}>
+          请选择一个组件进行配置
+        </div>
+      </Card>
+    )
+  }
+  
+  const currentTable = getCurrentTable()
+  const availableFields = currentTable?.schema_info.fields || []
+  const useConditionalSource = component.dataSource.type === 'conditional'
+  
   const handleDataSourceTypeChange = (type: 'table' | 'conditional') => {
     if (!component?.dataSource) {
       return
@@ -393,22 +417,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     
     message.success('条件数据源配置已保存')
     setConditionalSourceModalVisible(false)
-  }
-
-  const loadModalTables = async (datasetId: number) => {
-    // 如果已经加载过，直接返回
-    if (modalTablesMap[datasetId]) {
-      return
-    }
-    try {
-      const data = await datasetService.getTables(datasetId)
-      setModalTablesMap(prev => ({
-        ...prev,
-        [datasetId]: data,
-      }))
-    } catch (error) {
-      message.error('加载数据表失败')
-    }
   }
 
   const getModalTables = (datasetId: number): DataTable[] => {

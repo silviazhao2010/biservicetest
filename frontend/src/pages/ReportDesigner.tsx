@@ -7,6 +7,7 @@ import { SaveOutlined, ArrowLeftOutlined, EyeOutlined } from '@ant-design/icons'
 import ComponentLibrary from '../components/ComponentLibrary'
 import Canvas from '../components/Canvas'
 import PropertyPanel from '../components/PropertyPanel'
+import ErrorBoundary from '../components/ErrorBoundary'
 import { reportService } from '../services/reportService'
 import type { ComponentConfig, ReportConfig } from '../types'
 
@@ -101,16 +102,36 @@ const ReportDesigner: React.FC = () => {
   }
 
   const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
-    const updatedComponents = components.map(comp => 
-      comp.id === id ? { ...comp, ...updates } : comp
-    )
-    setComponents(updatedComponents)
-    if (selectedComponent?.id === id) {
-      // 从更新后的组件数组中获取最新组件
-      const updatedComponent = updatedComponents.find(c => c.id === id)
-      if (updatedComponent) {
-        setSelectedComponent(updatedComponent)
+    try {
+      const updatedComponents = components.map(comp => 
+        comp.id === id ? { ...comp, ...updates } : comp
+      )
+      setComponents(updatedComponents)
+      if (selectedComponent?.id === id) {
+        // 从更新后的组件数组中获取最新组件，确保数据源完整
+        const updatedComponent = updatedComponents.find(c => c.id === id)
+        if (updatedComponent) {
+          const safeComponent: ComponentConfig = {
+            ...updatedComponent,
+            dataSource: updatedComponent.dataSource || {
+              type: 'table',
+              datasetId: 0,
+              fields: {},
+            },
+            position: updatedComponent.position || {
+              x: 0,
+              y: 0,
+              width: 400,
+              height: 300,
+            },
+            style: updatedComponent.style || {},
+            props: updatedComponent.props || {},
+          }
+          setSelectedComponent(safeComponent)
+        }
       }
+    } catch (error) {
+      console.error('更新组件时出错:', error)
     }
   }
 
@@ -122,18 +143,56 @@ const ReportDesigner: React.FC = () => {
   }
 
   const handleSelectComponent = (component: ComponentConfig | null) => {
-    // 确保传递的是完整的组件对象，而不是引用
-    if (component) {
-      // 从components数组中查找最新的组件对象
-      const latestComponent = components.find(c => c.id === component.id)
-      if (latestComponent) {
-        // 直接使用找到的组件对象，避免创建新对象导致引用变化
-        setSelectedComponent(latestComponent)
+    try {
+      // 确保传递的是完整的组件对象，而不是引用
+      if (component) {
+        // 从components数组中查找最新的组件对象
+        const latestComponent = components.find(c => c.id === component.id)
+        if (latestComponent) {
+          // 确保组件对象完整，包含所有必需的属性
+          const safeComponent: ComponentConfig = {
+            ...latestComponent,
+            dataSource: latestComponent.dataSource || {
+              type: 'table',
+              datasetId: 0,
+              fields: {},
+            },
+            position: latestComponent.position || {
+              x: 0,
+              y: 0,
+              width: 400,
+              height: 300,
+            },
+            style: latestComponent.style || {},
+            props: latestComponent.props || {},
+          }
+          setSelectedComponent(safeComponent)
+        } else {
+          // 如果找不到，使用传入的组件，但确保属性完整
+          const safeComponent: ComponentConfig = {
+            ...component,
+            dataSource: component.dataSource || {
+              type: 'table',
+              datasetId: 0,
+              fields: {},
+            },
+            position: component.position || {
+              x: 0,
+              y: 0,
+              width: 400,
+              height: 300,
+            },
+            style: component.style || {},
+            props: component.props || {},
+          }
+          setSelectedComponent(safeComponent)
+        }
       } else {
-        setSelectedComponent(component)
+        setSelectedComponent(null)
       }
-    } else {
-      setSelectedComponent(null)
+    } catch (error) {
+      console.error('选择组件时出错:', error)
+      // 出错时不清空选择，保持当前状态
     }
   }
 
@@ -175,25 +234,29 @@ const ReportDesigner: React.FC = () => {
             <ComponentLibrary onAddComponent={handleAddComponent} />
           </Sider>
           <Content style={{ background: '#f5f5f5', position: 'relative' }}>
-            <Canvas
-              components={components}
-              selectedComponent={selectedComponent}
-              onSelectComponent={handleSelectComponent}
-              onUpdateComponent={handleUpdateComponent}
-              onDeleteComponent={handleDeleteComponent}
-              onAddComponent={(component) => setComponents([...components, component])}
-            />
+            <ErrorBoundary>
+              <Canvas
+                components={components}
+                selectedComponent={selectedComponent}
+                onSelectComponent={handleSelectComponent}
+                onUpdateComponent={handleUpdateComponent}
+                onDeleteComponent={handleDeleteComponent}
+                onAddComponent={(component) => setComponents([...components, component])}
+              />
+            </ErrorBoundary>
           </Content>
           <Sider width={300} style={{ background: '#fff', borderLeft: '1px solid #f0f0f0' }}>
-            <PropertyPanel
-              component={selectedComponent}
-              allComponents={components}
-              onUpdateComponent={(updates) => {
-                if (selectedComponent) {
-                  handleUpdateComponent(selectedComponent.id, updates)
-                }
-              }}
-            />
+            <ErrorBoundary>
+              <PropertyPanel
+                component={selectedComponent}
+                allComponents={components}
+                onUpdateComponent={(updates) => {
+                  if (selectedComponent) {
+                    handleUpdateComponent(selectedComponent.id, updates)
+                  }
+                }}
+              />
+            </ErrorBoundary>
           </Sider>
         </Layout>
       </Layout>

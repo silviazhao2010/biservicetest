@@ -50,11 +50,20 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   const handleClick = (e: React.MouseEvent) => {
     // 阻止事件冒泡，避免触发画布的点击事件
     e.stopPropagation()
+    e.preventDefault()
     // 如果点击的是删除按钮，不触发选择
     if ((e.target as HTMLElement).closest('.ant-btn')) {
       return
     }
-    onSelect()
+    // 如果正在拖拽，不触发选择
+    if (isDragging) {
+      return
+    }
+    try {
+      onSelect()
+    } catch (error) {
+      console.error('选择组件时出错:', error)
+    }
   }
 
   return (
@@ -99,11 +108,13 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
           )
         }
       >
-        <ChartComponent 
-          component={component} 
-          allComponents={allComponents}
-          getComponentValue={getComponentValue}
-        />
+        <React.Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>加载中...</div>}>
+          <ChartComponent 
+            component={component} 
+            allComponents={allComponents}
+            getComponentValue={getComponentValue}
+          />
+        </React.Suspense>
       </Card>
     </div>
   )

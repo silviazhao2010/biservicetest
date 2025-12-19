@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Layout, Button, Spin } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
@@ -35,7 +35,7 @@ const ReportPreview: React.FC = () => {
   }
 
   // 更新组件值的函数
-  const updateComponentValue = (componentId: string, value: any, field: string = 'value') => {
+  const updateComponentValue = React.useCallback((componentId: string, value: any, field: string = 'value') => {
     setComponents(prevComponents => 
       prevComponents.map(comp => 
         comp.id === componentId 
@@ -43,10 +43,10 @@ const ReportPreview: React.FC = () => {
           : comp
       )
     )
-  }
+  }, [])
 
   // 获取组件值的函数（用于条件数据源）
-  const getComponentValue = (componentId: string, field?: string): any => {
+  const getComponentValue = React.useCallback((componentId: string, field?: string): any => {
     const comp = components.find(c => c.id === componentId)
     if (!comp) {
       return null
@@ -62,7 +62,7 @@ const ReportPreview: React.FC = () => {
     
     // 对于其他组件或字段，直接返回对应字段的值
     return (comp.props as any)?.[fieldName] || null
-  }
+  }, [components])
 
   if (loading) {
     return (
