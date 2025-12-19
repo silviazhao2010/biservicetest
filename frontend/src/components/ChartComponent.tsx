@@ -15,6 +15,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   const [chartData, setChartData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedFields, setSelectedFields] = useState<Record<string, string> | undefined>(undefined)
   
   // 如果组件无效，显示错误信息
   if (!component) {
@@ -131,6 +132,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       // 如果是条件数据源，需要根据条件选择数据源
       let datasetId: number | undefined
       let tableName: string | undefined
+      let currentSelectedFields: Record<string, string> | undefined
 
       if (component.dataSource.type === 'conditional') {
         // 评估条件，选择合适的数据源
@@ -138,15 +140,20 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         if (selectedSource) {
           datasetId = selectedSource.datasetId
           tableName = selectedSource.tableName
+          currentSelectedFields = selectedSource.fields // 使用条件数据源的字段映射（如果存在）
         } else if (component.dataSource.defaultSource) {
           // 使用默认数据源
           datasetId = component.dataSource.defaultSource.datasetId
           tableName = component.dataSource.defaultSource.tableName
+          // 默认数据源使用组件配置的字段映射
+          currentSelectedFields = undefined
         }
       } else {
         // 固定数据源
         datasetId = component.dataSource.datasetId
         tableName = component.dataSource.tableName
+        // 固定数据源使用组件配置的字段映射
+        currentSelectedFields = undefined
       }
 
       if (!datasetId) {
@@ -180,6 +187,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       }
 
       setChartData(result.data || [])
+      setSelectedFields(currentSelectedFields) // 保存当前使用的字段映射
       setError(null)
     } catch (error: any) {
       console.error('加载数据失败:', error)
@@ -190,8 +198,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     }
   }
 
-  // 评估条件数据源，返回匹配的数据源配置
-  const evaluateConditionalSource = (comp: ComponentConfig): { datasetId: number, tableName?: string } | null => {
+  // 评估条件数据源，返回匹配的数据源配置（包括字段映射）
+  const evaluateConditionalSource = (comp: ComponentConfig): { datasetId: number, tableName?: string, fields?: Record<string, string> } | null => {
     if (comp.dataSource.type !== 'conditional' || !comp.dataSource.conditionalSources) {
       return null
     }
@@ -256,6 +264,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         return {
           datasetId: source.datasetId,
           tableName: source.tableName,
+          fields: source.fields, // 返回条件数据源的字段映射
         }
       }
     }
@@ -354,7 +363,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       )
     }
 
-    const fields = component.dataSource.fields || {}
+    // 使用条件数据源的字段映射（如果存在），否则使用组件配置的字段映射
+    const fields = selectedFields || component.dataSource.fields || {}
     
     // 检查字段配置是否完整
     const hasRequiredFields = () => {

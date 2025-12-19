@@ -95,6 +95,7 @@ export interface ConditionalDataSource {
   datasetId: number
   tableName?: string
   sql?: string
+  fields?: Record<string, string> // 字段映射，如果未设置则使用属性配置中的字段映射
   // 为了向后兼容，保留 condition 字段（已废弃，使用 conditions 替代）
   condition?: DataSourceCondition
 }

@@ -1444,6 +1444,61 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         </Select>
                       </Form.Item>
                     )}
+                    {/* 字段映射配置 */}
+                    {source.datasetId && (() => {
+                      // 获取当前条件数据源对应的表
+                      const sourceTable = source.tableName 
+                        ? getModalTables(source.datasetId).find(t => t.table_name === source.tableName)
+                        : (getModalTables(source.datasetId)[0] || null)
+                      
+                      // 获取可用字段
+                      const sourceAvailableFields = sourceTable?.schema_info.fields || []
+                      
+                      // 获取字段配置（如果条件数据源有自定义字段映射，使用它；否则使用默认字段映射）
+                      const sourceFields = source.fields || component.dataSource.fields || {}
+                      
+                      return getFieldConfig().map(field => (
+                        <Form.Item key={field.key} label={field.label} style={{ marginBottom: 0, flex: 1, minWidth: '150px' }}>
+                          <Tooltip title="如果未配置字段映射，将使用属性配置中的字段映射">
+                            <Select
+                              value={sourceFields[field.key] || undefined}
+                              onChange={(value) => {
+                                const newFields: Record<string, string> = {}
+                                Object.keys(sourceFields).forEach(key => {
+                                  if (sourceFields[key]) {
+                                    newFields[key] = sourceFields[key]
+                                  }
+                                })
+                                if (value) {
+                                  newFields[field.key] = value
+                                } else {
+                                  delete newFields[field.key]
+                                }
+                                // 如果所有字段都为空，则删除fields配置（使用默认字段映射）
+                                const hasAnyField = Object.keys(newFields).length > 0 && Object.values(newFields).some(v => v)
+                                handleUpdateConditionalSource(index, { 
+                                  fields: hasAnyField ? newFields : undefined 
+                                })
+                              }}
+                              placeholder={`${field.label}（可选）`}
+                              allowClear
+                              showSearch
+                              filterOption={(input, option) => {
+                                const text = String(option?.label || option?.children || '')
+                                return text.toLowerCase().includes(input.toLowerCase())
+                              }}
+                              style={{ width: '100%' }}
+                            >
+                              {sourceAvailableFields.map(f => (
+                                <Select.Option key={f.name} value={f.name}>
+                                  {f.name} ({f.type})
+                                </Select.Option>
+                              ))}
+                            </Select>
+                          </Tooltip>
+                        </Form.Item>
+                      ))
+                    })()}
                   </Space>
                 </Space>
               </Card>
