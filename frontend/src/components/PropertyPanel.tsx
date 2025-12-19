@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Switch, Radio, Modal } from 'antd'
+import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Radio, Modal, Tabs, Table, Alert, Tooltip } from 'antd'
 import { PlusOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
-import type { ComponentConfig, Dataset, DataTable, ComponentRelation, ConditionalDataSource, DataSourceCondition } from '../types'
+import type { ComponentConfig, Dataset, DataTable, ConditionalDataSource, DataSourceCondition } from '../types'
 
 interface PropertyPanelProps {
   component: ComponentConfig | null
@@ -18,6 +18,10 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   const [conditionalSourceModalVisible, setConditionalSourceModalVisible] = useState(false)
   const [modalTablesMap, setModalTablesMap] = useState<Record<number, DataTable[]>>({})
   const [componentDataSourceData, setComponentDataSourceData] = useState<Record<string, any[]>>({})
+  const [previewData, setPreviewData] = useState<any[]>([])
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewTableName, setPreviewTableName] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
   
   // 加载模态框中的表数据（必须在所有 useEffect 之前定义）
   const loadModalTables = async (datasetId: number) => {
@@ -170,6 +174,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
   }
 
   const getFieldConfig = () => {
+    if (!component) {
+      return []
+    }
     switch (component.type) {
       case 'line_chart':
         return [
@@ -500,33 +507,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     })
   }
 
-  const handleUpdateCondition = (sourceIndex: number, conditionUpdates: Partial<DataSourceCondition>) => {
-    if (!component?.dataSource) {
-      return
-    }
-    
-    // 为了向后兼容，支持旧的 condition 格式
-    const source = component.dataSource.conditionalSources[sourceIndex]
-    const conditions = source.conditions || (source.condition ? [source.condition] : [])
-    
-    const newSources = [...(component.dataSource.conditionalSources || [])]
-    newSources[sourceIndex] = {
-      ...newSources[sourceIndex],
-      conditions: conditions.map((cond, idx) => 
-        idx === 0 ? { ...cond, ...conditionUpdates } : cond
-      ),
-      logicOperator: source.logicOperator || 'AND',
-    }
-    onUpdateComponent({
-      dataSource: {
-        ...component.dataSource,
-        conditionalSources: newSources,
-      },
-    })
-  }
-
   const handleUpdateSubCondition = (sourceIndex: number, conditionIndex: number, conditionUpdates: Partial<DataSourceCondition>) => {
-    if (!component?.dataSource) {
+    if (!component?.dataSource || !component.dataSource.conditionalSources) {
       return
     }
     
@@ -549,26 +531,181 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     })
   }
 
+  // 数据预览功能
+  const handlePreviewData = async () => {
+    if (!component?.dataSource) {
+      return
+    }
+    
+    setPreviewLoading(true)
+    setShowPreview(true)
+    
+    try {
+      let datasetId: number | undefined
+      let tableName: string | undefined
+      
+      if (component.dataSource.type === 'conditional') {
+        if (component.dataSource.defaultSource) {
+          datasetId = component.dataSource.defaultSource.datasetId
+          tableName = component.dataSource.defaultSource.tableName
+        }
+      } else {
+        datasetId = component.dataSource.datasetId
+        tableName = component.dataSource.tableName
+      }
+      
+      if (!datasetId) {
+        message.warning('请先选择数据集')
+        setPreviewLoading(false)
+        return
+      }
+      
+      const result = await dataService.getTableData({
+        dataset_id: datasetId,
+        table_name: tableName,
+        filters: [],
+        limit: 10,
+      })
+      
+      setPreviewData(result.data || [])
+      setPreviewTableName(result.table_name || tableName || '自动选择')
+    } catch (error: any) {
+      message.error('预览数据失败: ' + (error?.message || '未知错误'))
+      setPreviewData([])
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+  
+  // 获取配置状态提示
+  const getConfigStatus = () => {
+    if (!component?.dataSource) {
+      return []
+    }
+    
+    const status: Array<{ type: 'success' | 'warning', message: string }> = []
+    
+    if (component.dataSource.type === 'conditional') {
+      if (component.dataSource.defaultSource?.datasetId) {
+        status.push({ type: 'success', message: '✅ 默认数据集已选择' })
+      } else {
+        status.push({ type: 'warning', message: '⚠️ 请配置默认数据集' })
+      }
+      
+      if (component.dataSource.defaultSource?.tableName) {
+        status.push({ type: 'success', message: '✅ 默认数据表已选择' })
+      } else {
+        status.push({ type: 'warning', message: '⚠️ 数据表未选择（将自动选择）' })
+      }
+    } else {
+      if (component.dataSource.datasetId) {
+        status.push({ type: 'success', message: '✅ 数据集已选择' })
+      } else {
+        status.push({ type: 'warning', message: '⚠️ 请选择数据集' })
+      }
+      
+      if (component.dataSource.tableName) {
+        status.push({ type: 'success', message: '✅ 数据表已选择' })
+      } else {
+        status.push({ type: 'warning', message: '⚠️ 数据表未选择（将自动选择）' })
+      }
+    }
+    
+    const fieldConfig = getFieldConfig()
+    const hasAllFields = fieldConfig.every(field => component.dataSource.fields[field.key])
+    if (hasAllFields && fieldConfig.length > 0) {
+      status.push({ type: 'success', message: '✅ 字段已配置' })
+    } else if (fieldConfig.length > 0) {
+      status.push({ type: 'warning', message: '⚠️ 请配置所有必需字段' })
+    }
+    
+    return status
+  }
+  
+  // 获取智能提示信息
+  const getSmartTips = () => {
+    if (!component?.dataSource) {
+      return null
+    }
+    
+    const tips: string[] = []
+    
+    if (component.dataSource.type === 'table') {
+      // 固定数据源提示
+      if (component.dataSource.datasetId && !component.dataSource.tableName) {
+        const selectedFields = Object.values(component.dataSource.fields).filter(Boolean)
+        if (selectedFields.length > 0) {
+          tips.push(`已选择字段：[${selectedFields.join(', ')}]，系统将自动选择包含这些字段的表`)
+        }
+        
+      }
+    }
+    
+    return tips.length > 0 ? tips : null
+  }
+
   return (
     <Card title="属性配置" style={{ height: '100%', borderRadius: 0, overflow: 'auto' }}>
-      <Form form={form} layout="vertical">
-        <Form.Item label="数据源类型">
-          <Radio.Group
-            value={component.dataSource.type || 'table'}
-            onChange={(e) => handleDataSourceTypeChange(e.target.value)}
-          >
-            <Radio value="table">固定数据源</Radio>
-            <Radio value="conditional">条件数据源</Radio>
-          </Radio.Group>
-        </Form.Item>
+      <Tabs
+        activeKey={component.dataSource.type || 'table'}
+        onChange={(key) => handleDataSourceTypeChange(key as 'table' | 'conditional')}
+        items={[
+          {
+            key: 'table',
+            label: '固定数据源',
+          },
+          {
+            key: 'conditional',
+            label: '条件数据源',
+          },
+        ]}
+      />
+      
+      <Form form={form} layout="vertical" style={{ marginTop: '16px' }}>
+        {/* 配置状态提示 */}
+        {getConfigStatus().length > 0 && (
+          <Form.Item>
+            <div style={{ marginBottom: '16px' }}>
+              {getConfigStatus().map((status, index) => (
+                <div key={index} style={{ fontSize: '12px', marginBottom: '4px', color: status.type === 'success' ? '#52c41a' : '#faad14' }}>
+                  {status.message}
+                </div>
+              ))}
+            </div>
+          </Form.Item>
+        )}
+        
+        {/* 智能提示 */}
+        {getSmartTips() && (
+          <Form.Item>
+            <Alert
+              message="智能提示"
+              description={
+                <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                  {getSmartTips()?.map((tip, index) => (
+                    <li key={index} style={{ marginBottom: '4px' }}>{tip}</li>
+                  ))}
+                </ul>
+              }
+              type="info"
+              showIcon
+              style={{ marginBottom: '16px' }}
+            />
+          </Form.Item>
+        )}
 
         {!useConditionalSource ? (
           <>
-            <Form.Item label="数据集">
+            <Form.Item label="数据集" required>
               <Select
                 value={component.dataSource.datasetId || undefined}
                 onChange={handleDatasetChange}
                 placeholder="请选择数据集"
+                showSearch
+                filterOption={(input, option) => {
+                  const text = String(option?.label || option?.children || '')
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
               >
                 {datasets.map(ds => (
                   <Select.Option key={ds.id} value={ds.id}>
@@ -577,6 +714,42 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                 ))}
               </Select>
             </Form.Item>
+
+            {component.dataSource.datasetId && (
+              <Form.Item 
+                label={
+                  <span>
+                    数据表
+                    <Tooltip title="可选：如果不选择，系统将根据字段自动选择包含这些字段的表">
+                      <span style={{ marginLeft: '4px', color: '#999', cursor: 'help' }}>?</span>
+                    </Tooltip>
+                  </span>
+                }
+              >
+                <Select
+                  value={component.dataSource.tableName}
+                  onChange={handleTableChange}
+                  placeholder="请选择数据表（可选，系统可自动选择）"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = String(option?.label || option?.children || '')
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {tables.map(table => (
+                    <Select.Option key={table.id} value={table.table_name}>
+                      {table.display_name}
+                    </Select.Option>
+                  ))}
+                </Select>
+                {!component.dataSource.tableName && (
+                  <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                    系统将根据字段自动选择最合适的表
+                  </div>
+                )}
+              </Form.Item>
+            )}
           </>
         ) : (
           <>
@@ -608,47 +781,81 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           </>
         )}
 
-        {!useConditionalSource && component.dataSource.datasetId && (
-          <Form.Item label="数据表" tooltip="可选：如果不选择，系统将根据过滤条件中的字段自动选择包含这些字段的表">
-            <Select
-              value={component.dataSource.tableName}
-              onChange={handleTableChange}
-              placeholder="请选择数据表（可选，系统可自动选择）"
-              allowClear
-            >
-              {tables.map(table => (
-                <Select.Option key={table.id} value={table.table_name}>
-                  {table.display_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+        {/* 字段映射配置 */}
+        {((!useConditionalSource && component.dataSource.datasetId) || 
+          (useConditionalSource && component.dataSource.defaultSource?.datasetId)) && (
+          <>
+            <Divider orientation="left" style={{ margin: '16px 0' }}>字段映射</Divider>
+            {getFieldConfig().map(field => (
+              <Form.Item key={field.key} label={field.label} required>
+                <Select
+                  value={component.dataSource.fields[field.key]}
+                  onChange={(value) => handleFieldChange(field.key, value)}
+                  placeholder={`请选择${field.label}`}
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = String(option?.label || option?.children || '')
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {availableFields.map(f => (
+                    <Select.Option key={f.name} value={f.name}>
+                      {f.name} ({f.type})
+                    </Select.Option>
+                  ))}
+                </Select>
+                {useConditionalSource && (
+                  <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                    提示：字段配置基于默认数据源的表结构，所有条件数据源应使用相同的字段结构
+                  </div>
+                )}
+              </Form.Item>
+            ))}
+          </>
         )}
 
-        {/* 字段配置：固定数据源时显示（只要有数据集即可，表名可选），条件数据源时也显示（基于默认数据源的表） */}
+        {/* 数据预览 */}
         {((!useConditionalSource && component.dataSource.datasetId) || 
-          (useConditionalSource && component.dataSource.defaultSource?.datasetId)) && 
-          getFieldConfig().map(field => (
-          <Form.Item key={field.key} label={field.label}>
-            <Select
-              value={component.dataSource.fields[field.key]}
-              onChange={(value) => handleFieldChange(field.key, value)}
-              placeholder={`请选择${field.label}`}
-            >
-              {availableFields.map(f => (
-                <Select.Option key={f.name} value={f.name}>
-                  {f.name} ({f.type})
-                </Select.Option>
-              ))}
-            </Select>
-            {useConditionalSource && (
-              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                提示：字段配置基于默认数据源的表结构，所有条件数据源应使用相同的字段结构
-              </div>
+          (useConditionalSource && component.dataSource.defaultSource?.datasetId)) && (
+          <>
+            <Divider orientation="left" style={{ margin: '16px 0' }}>数据预览</Divider>
+            <Form.Item>
+              <Button
+                type="default"
+                onClick={handlePreviewData}
+                loading={previewLoading}
+                block
+              >
+                预览数据
+              </Button>
+            </Form.Item>
+            {showPreview && (
+              <Form.Item>
+                <Card size="small" title={`数据预览${previewTableName ? ` (表: ${previewTableName})` : ''}`}>
+                  {previewLoading ? (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>加载中...</div>
+                  ) : previewData.length > 0 ? (
+                    <Table
+                      dataSource={previewData}
+                      columns={Object.keys(previewData[0] || {}).map(key => ({
+                        title: key,
+                        dataIndex: key,
+                        key,
+                      }))}
+                      pagination={false}
+                      size="small"
+                      scroll={{ y: 200 }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>暂无数据</div>
+                  )}
+                </Card>
+              </Form.Item>
             )}
-          </Form.Item>
-        ))}
+          </>
+        )}
 
+        <Divider orientation="left" style={{ margin: '16px 0' }}>组件尺寸</Divider>
         <Form.Item label="宽度">
           <InputNumber
             value={component.position.width}
@@ -657,6 +864,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
             })}
             min={100}
             max={2000}
+            style={{ width: '100%' }}
           />
         </Form.Item>
 
@@ -668,6 +876,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
             })}
             min={100}
             max={2000}
+            style={{ width: '100%' }}
           />
         </Form.Item>
       </Form>
@@ -732,9 +941,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                     },
                   })
                 }}
-                placeholder="请选择数据表（可选，系统可自动选择）"
+                placeholder="请选择默认数据表（可选，系统可自动选择）"
                 allowClear
-                placeholder="请选择默认数据表"
                 style={{ width: '100%' }}
               >
                 {getModalTables(component.dataSource.defaultSource?.datasetId || 0).map(table => (
@@ -1203,9 +1411,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                             }
                           })
                         }}
-                        placeholder="请选择数据表（可选，系统可自动选择）"
+                        placeholder="选择数据表（可选，系统可自动选择）"
                         allowClear
-                        placeholder="选择数据表"
                         style={{ width: '100%' }}
                       >
                         {getModalTables(source.datasetId).map(table => (
