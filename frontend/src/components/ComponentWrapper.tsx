@@ -25,22 +25,46 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   getComponentValue,
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
+  // 使用 useRef 存储拖拽开始时的组件信息，避免在拖拽过程中被更新
+  const dragStartComponentRef = useRef<ComponentConfig | null>(null)
 
   const [{ isDragging }, drag, preview] = useDrag(() => ({
     type: 'component',
     item: () => {
-      // 返回组件信息
-      return {
-        ...component,
+      // 在 react-dnd v14 中，item 函数在拖拽开始时被调用一次，返回的值会被缓存
+      // 如果 ref 为空，说明这是第一次调用，捕获组件信息并存储
+      if (!dragStartComponentRef.current) {
+        // 在拖拽开始时捕获组件信息（深拷贝，确保位置信息不会被后续更新影响）
+        const startComponent = {
+          ...component,
+          position: { ...component.position },
+        }
+        dragStartComponentRef.current = startComponent
+        console.log('Drag item: Captured component', {
+          id: startComponent.id,
+          position: startComponent.position,
+        })
+        return startComponent
       }
+      // 后续调用返回 ref 中存储的值（虽然理论上不会再次调用，但为了安全起见）
+      console.log('Drag item: Returning cached component', {
+        id: dragStartComponentRef.current.id,
+        position: dragStartComponentRef.current.position,
+      })
+      return dragStartComponentRef.current
     },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
     end: (item, monitor) => {
-      // 拖拽结束时的处理
+      // 拖拽结束时清理
+      console.log('Drag end: Cleaning up', {
+        id: item?.id,
+        position: item?.position,
+      })
+      dragStartComponentRef.current = null
     },
-  }))
+  }), [component])
 
   // 使用空预览，让原始元素保持可见
   React.useEffect(() => {
@@ -81,7 +105,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
         opacity: isDragging ? 0.6 : 1,
         cursor: 'move',
         zIndex: isSelected ? 1000 : isDragging ? 999 : 1,
-        pointerEvents: isDragging ? 'none' : 'auto',
+        pointerEvents: isDragging ? 'auto' : 'auto', // 保持pointerEvents为auto，确保组件在拖拽时仍然可见
         transform: isDragging ? 'none' : 'none',
       }}
       onClick={handleClick}

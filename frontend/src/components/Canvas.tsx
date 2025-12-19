@@ -24,6 +24,7 @@ const Canvas: React.FC<CanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [dragPreview, setDragPreview] = useState<{ x: number, y: number, type?: ComponentConfig['type'] } | null>(null)
+  const lastUpdateRef = useRef<{ id: string, x: number, y: number } | null>(null)
 
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ['component', 'component-library'],
@@ -47,29 +48,33 @@ const Canvas: React.FC<CanvasProps> = ({
       if ('type' in item && !('id' in item)) {
         setDragPreview({ x, y, type: item.type })
       } else if ('id' in item) {
-        // 如果是画布上的组件，在hover时实时更新位置
+        // 如果是画布上的组件，实时更新位置
         const initialOffset = monitor.getInitialClientOffset()
         const initialSourceClientOffset = monitor.getInitialSourceClientOffset()
         
         if (initialOffset && initialSourceClientOffset) {
-          // 计算鼠标移动的增量
+          // 计算鼠标移动的增量（相对于画布的坐标）
           const deltaX = offset.x - initialOffset.x
           const deltaY = offset.y - initialOffset.y
           
-          // 获取当前组件的最新位置（从components数组中获取，而不是item）
+          // 获取当前组件的最新位置
           const currentComponent = components.find(c => c.id === item.id)
           if (currentComponent) {
-            // 组件在画布中的原始位置（使用当前组件的位置，而不是item中的位置）
-            const originalX = currentComponent.position.x
-            const originalY = currentComponent.position.y
+            // 组件在画布中的原始位置（使用拖拽开始时的位置，存储在item中）
+            const originalX = item.position.x
+            const originalY = item.position.y
             
             // 新位置 = 原始位置 + 移动增量
             const newX = Math.max(0, originalX + deltaX)
             const newY = Math.max(0, originalY + deltaY)
             
-            // 只有当位置发生变化时才更新
-            if (Math.abs(newX - currentComponent.position.x) > 1 || 
-                Math.abs(newY - currentComponent.position.y) > 1) {
+            // 使用节流：只有当位置变化超过阈值时才更新，避免过度更新
+            const threshold = 2 // 降低阈值，让拖拽更流畅
+            const lastUpdate = lastUpdateRef.current
+            if (!lastUpdate || 
+                lastUpdate.id !== item.id ||
+                Math.abs(newX - lastUpdate.x) > threshold || 
+                Math.abs(newY - lastUpdate.y) > threshold) {
               // 实时更新组件位置
               onUpdateComponent(item.id, {
                 position: {
@@ -78,6 +83,7 @@ const Canvas: React.FC<CanvasProps> = ({
                   y: newY,
                 },
               })
+              lastUpdateRef.current = { id: item.id, x: newX, y: newY }
             }
           }
         }
@@ -88,6 +94,7 @@ const Canvas: React.FC<CanvasProps> = ({
     },
     drop: (item: ComponentConfig | { type: ComponentConfig['type'] }, monitor) => {
       setDragPreview(null)
+      lastUpdateRef.current = null
       
       if (!canvasRef.current) {
         return
@@ -165,17 +172,21 @@ const Canvas: React.FC<CanvasProps> = ({
       }
 
       // 如果是画布上已有的组件，在drop时最终确认位置
-      // 注意：位置已经在hover时实时更新了，这里只需要确保位置正确
       if ('id' in item) {
+        const currentComponent = components.find(c => c.id === item.id)
+        if (!currentComponent) {
+          return
+        }
+        
         const initialOffset = monitor.getInitialClientOffset()
         const initialSourceClientOffset = monitor.getInitialSourceClientOffset()
         
         if (initialOffset && initialSourceClientOffset) {
-          // 计算鼠标移动的增量
+          // 计算鼠标移动的增量（相对于画布的坐标）
           const deltaX = offset.x - initialOffset.x
           const deltaY = offset.y - initialOffset.y
           
-          // 组件在画布中的原始位置
+          // 使用拖拽开始时的原始位置（item中的位置，这是在begin时捕获的）
           const originalX = item.position.x
           const originalY = item.position.y
           
@@ -183,10 +194,18 @@ const Canvas: React.FC<CanvasProps> = ({
           const newX = Math.max(0, originalX + deltaX)
           const newY = Math.max(0, originalY + deltaY)
           
-          // 最终确认位置（防止hover时更新不及时）
+          // 最终确认位置（确保位置准确保存）
+          // 使用计算出的新位置，而不是当前组件的位置
+          console.log('Drop: Final position update', {
+            id: item.id,
+            original: { x: originalX, y: originalY },
+            delta: { x: deltaX, y: deltaY },
+            new: { x: newX, y: newY },
+            current: { x: currentComponent.position.x, y: currentComponent.position.y },
+          })
           onUpdateComponent(item.id, {
             position: {
-              ...item.position,
+              ...currentComponent.position,
               x: newX,
               y: newY,
             },

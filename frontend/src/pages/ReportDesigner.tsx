@@ -103,9 +103,30 @@ const ReportDesigner: React.FC = () => {
 
   const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
     try {
-      const updatedComponents = components.map(comp => 
-        comp.id === id ? { ...comp, ...updates } : comp
-      )
+      const updatedComponents = components.map(comp => {
+        if (comp.id === id) {
+          // 深度合并位置信息，确保位置更新正确
+          if (updates.position) {
+            const newComp = {
+              ...comp,
+              ...updates,
+              position: {
+                ...comp.position,
+                ...updates.position,
+              },
+            }
+            console.log('handleUpdateComponent: Updating position', {
+              id,
+              oldPosition: comp.position,
+              newPosition: newComp.position,
+              updates: updates.position,
+            })
+            return newComp
+          }
+          return { ...comp, ...updates }
+        }
+        return comp
+      })
       setComponents(updatedComponents)
       if (selectedComponent?.id === id) {
         // 从更新后的组件数组中获取最新组件，确保数据源完整
