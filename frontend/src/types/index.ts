@@ -50,6 +50,37 @@ export interface ComponentRelation {
   operator?: string
 }
 
+export interface InteractionConfig {
+  // 钻取配置
+  drillDown?: {
+    enabled: boolean
+    type: 'self' | 'filter' | 'navigate' // self: 钻取本组件, filter: 过滤其他组件, navigate: 跳转到其他报表
+    targetComponentId?: string // 目标组件ID（用于过滤）
+    reportId?: number // 目标报表ID（用于跳转）
+    field?: string // 用于钻取的字段（已废弃，使用dimensions）
+    // 钻取维度配置（最多3级）
+    dimensions?: {
+      level1?: string // 一级维度字段
+      level2?: string // 二级维度字段
+      level3?: string // 三级维度字段
+    }
+  }
+  // 跳转配置
+  navigation?: {
+    enabled: boolean
+    type: 'report' | 'url' // report: 跳转到报表, url: 跳转到URL
+    reportId?: number // 目标报表ID
+    url?: string // 目标URL
+    openInNewTab?: boolean // 是否在新标签页打开
+  }
+  // 过滤配置
+  filter?: {
+    enabled: boolean
+    targetComponentIds?: string[] // 目标组件ID列表
+    field?: string // 用于过滤的字段
+  }
+}
+
 export interface ComponentConfig {
   id: string
   type: 'line_chart' | 'pie_chart' | 'dropdown' | 'text_input' | 'tree_chart'
@@ -67,6 +98,7 @@ export interface ComponentConfig {
   dataSource: DataSourceConfig
   props: Record<string, any>
   relations?: ComponentRelation[]
+  interaction?: InteractionConfig // 交互控制配置
 }
 
 export interface Filter {

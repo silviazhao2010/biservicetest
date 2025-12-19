@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import ReactECharts from 'echarts-for-react'
-import { Select, Input } from 'antd'
+import { Select, Input, Button } from 'antd'
+import { ArrowLeftOutlined } from '@ant-design/icons'
 import { dataService } from '../services/dataService'
 import type { ComponentConfig } from '../types'
 
@@ -16,6 +17,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFields, setSelectedFields] = useState<Record<string, string> | undefined>(undefined)
+  // 钻取状态：存储当前钻取层级和维度值
+  const drillDownState = (component.props as any)?.drillDownState || { level: 0, values: {} }
   
   // 如果组件无效，显示错误信息
   if (!component) {
@@ -116,7 +119,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       setError('组件配置错误')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [component?.dataSource, dependentValuesKey, component?.id])
+  }, [component?.dataSource, dependentValuesKey, component?.id, component?.props?.drillDownState])
 
   const loadData = async () => {
     try {
@@ -163,10 +166,54 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       }
 
       setLoading(true)
+      
+      // 构建过滤条件：包括数据源配置的过滤器和钻取过滤器
+      const filters = [...(component.dataSource.filters || [])]
+      
+      // 如果启用了钻取本组件功能，添加钻取过滤器
+      if (component.interaction?.drillDown?.enabled && 
+          component.interaction.drillDown.type === 'self' &&
+          drillDownState.level > 0) {
+        const dimensions = component.interaction.drillDown.dimensions
+        if (dimensions) {
+          // 根据当前钻取层级添加过滤条件
+          // 当在1级时，使用level1的值过滤（显示该一级维度值下的二级维度数据）
+          // 当在2级时，使用level1和level2的值过滤（显示该一级和二级维度值下的三级维度数据）
+          // 当在3级时，使用level1、level2和level3的值过滤
+          
+          // 一级维度过滤（当level >= 1时，必须过滤一级维度）
+          if (drillDownState.level >= 1 && drillDownState.values.level1 && dimensions.level1) {
+            filters.push({
+              field: dimensions.level1,
+              operator: '=',
+              value: drillDownState.values.level1,
+            })
+          }
+          
+          // 二级维度过滤（当level >= 2时，必须过滤二级维度）
+          if (drillDownState.level >= 2 && drillDownState.values.level2 && dimensions.level2) {
+            filters.push({
+              field: dimensions.level2,
+              operator: '=',
+              value: drillDownState.values.level2,
+            })
+          }
+          
+          // 三级维度过滤（当level >= 3时，必须过滤三级维度）
+          if (drillDownState.level >= 3 && drillDownState.values.level3 && dimensions.level3) {
+            filters.push({
+              field: dimensions.level3,
+              operator: '=',
+              value: drillDownState.values.level3,
+            })
+          }
+        }
+      }
+      
       const result = await dataService.getTableData({
         dataset_id: datasetId,
         table_name: tableName, // tableName 现在是可选的
-        filters: component.dataSource.filters || [],
+        filters: filters,
       })
       
       // 如果返回了自动选择的表名，更新组件配置，以便字段配置可以正确显示
@@ -366,6 +413,94 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     // 使用条件数据源的字段映射（如果存在），否则使用组件配置的字段映射
     const fields = selectedFields || component.dataSource.fields || {}
     
+    // 处理钻取点击事件
+    const handleDrillDownClick = (clickedValue: any, clickedField?: string, dataIndex?: number) => {
+      if (!component.interaction?.drillDown?.enabled || 
+          component.interaction.drillDown.type !== 'self' ||
+          !onComponentValueChange) {
+        return
+      }
+      
+      const dimensions = component.interaction.drillDown.dimensions
+      if (!dimensions) {
+        return
+      }
+      
+      const currentLevel = drillDownState.level
+      // 确保 values 对象被正确复制
+      const newState = { 
+        level: drillDownState.level,
+        values: { ...drillDownState.values }
+      }
+      
+      // 确定点击的是哪个维度的字段
+      let targetLevel = 0
+      let targetField = ''
+      
+      if (currentLevel === 0 && dimensions.level1) {
+        // 从0级下钻到1级：点击的是一级维度的值（如"江苏"）
+        targetLevel = 1
+        targetField = dimensions.level1
+        // 保存点击的一级维度值到 level1，用于过滤
+        newState.values.level1 = clickedValue
+      } else if (currentLevel === 1 && dimensions.level2) {
+        // 从1级下钻到2级：点击的是二级维度的值（如"南京"）
+        targetLevel = 2
+        targetField = dimensions.level2
+        // 保存点击的二级维度值到 level2，用于过滤
+        // level1 的值保持不变，用于过滤（从 drillDownState.values 中保留）
+        newState.values.level1 = drillDownState.values.level1
+        newState.values.level2 = clickedValue
+      } else if (currentLevel === 2 && dimensions.level3) {
+        // 从2级下钻到3级：点击的是三级维度的值
+        targetLevel = 3
+        targetField = dimensions.level3
+        // 保存点击的三级维度值到 level3，用于过滤
+        // level1 和 level2 的值保持不变，用于过滤（从 drillDownState.values 中保留）
+        newState.values.level1 = drillDownState.values.level1
+        newState.values.level2 = drillDownState.values.level2
+        newState.values.level3 = clickedValue
+      }
+      
+      if (targetLevel > 0 && targetField) {
+        // 更新钻取状态
+        newState.level = targetLevel
+        
+        // 清除更高级别的值
+        for (let i = targetLevel + 1; i <= 3; i++) {
+          delete newState.values[`level${i}`]
+        }
+        
+        console.log('钻取下钻:', {
+          currentLevel,
+          targetLevel,
+          clickedValue,
+          targetField,
+          newState,
+        })
+        
+        // 保存钻取状态并触发数据重新加载
+        onComponentValueChange(component.id, newState, 'drillDownState')
+      }
+    }
+    
+    // 处理返回上级
+    const handleDrillUp = () => {
+      if (!onComponentValueChange || drillDownState.level <= 0) {
+        return
+      }
+      
+      const newState = { ...drillDownState }
+      const currentLevel = newState.level
+      
+      // 清除当前级别的值
+      delete newState.values[`level${currentLevel}`]
+      newState.level = currentLevel - 1
+      
+      // 保存钻取状态并触发数据重新加载
+      onComponentValueChange(component.id, newState, 'drillDownState')
+    }
+    
     // 检查字段配置是否完整
     const hasRequiredFields = () => {
       switch (component.type) {
@@ -396,39 +531,131 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     
     switch (component.type) {
       case 'line_chart':
+        // 确定当前钻取层级对应的维度字段
+        const lineDrillField = drillDownState.level === 0 
+          ? (component.interaction?.drillDown?.dimensions?.level1 || fields.x)
+          : drillDownState.level === 1
+          ? (component.interaction?.drillDown?.dimensions?.level2 || fields.x)
+          : (component.interaction?.drillDown?.dimensions?.level3 || fields.x)
+        
         return (
-          <ReactECharts
-            option={{
-              xAxis: {
-                type: 'category',
-                data: chartData.map((item: any) => item[fields.x] || ''),
-              },
-              yAxis: {
-                type: 'value',
-              },
-              series: [{
-                data: chartData.map((item: any) => item[fields.y] || 0),
-                type: 'line',
-              }],
-            }}
-            style={{ height: '100%', width: '100%' }}
-          />
+          <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+            {drillDownState.level > 0 && (
+              <Button
+                type="link"
+                icon={<ArrowLeftOutlined />}
+                onClick={handleDrillUp}
+                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}
+              >
+                返回上级
+              </Button>
+            )}
+            <ReactECharts
+              option={{
+                xAxis: {
+                  type: 'category',
+                  data: chartData.map((item: any) => item[lineDrillField] || ''),
+                },
+                yAxis: {
+                  type: 'value',
+                },
+                series: [{
+                  data: chartData.map((item: any) => item[fields.y] || 0),
+                  type: 'line',
+                }],
+              }}
+              style={{ height: '100%', width: '100%' }}
+              onEvents={{
+                click: (params: any) => {
+                  if (component.interaction?.drillDown?.enabled && 
+                      component.interaction.drillDown.type === 'self') {
+                    // 从图表数据中获取点击的值
+                    // params.dataIndex 是点击的数据点索引
+                    const dataIndex = params.dataIndex
+                    let clickedValue = params.name || params.value
+                    
+                    // 如果可以从数据中获取，优先使用数据中的值
+                    if (dataIndex !== undefined && chartData && chartData[dataIndex]) {
+                      const clickedData = chartData[dataIndex]
+                      clickedValue = clickedData[lineDrillField] || clickedValue
+                    }
+                    
+                    console.log('折线图点击:', {
+                      params,
+                      dataIndex,
+                      clickedValue,
+                      lineDrillField,
+                      chartData: chartData?.[dataIndex],
+                    })
+                    
+                    handleDrillDownClick(clickedValue, lineDrillField, dataIndex)
+                  }
+                },
+              }}
+            />
+          </div>
         )
       
       case 'pie_chart':
+        // 确定当前钻取层级对应的维度字段
+        const pieDrillField = drillDownState.level === 0 
+          ? (component.interaction?.drillDown?.dimensions?.level1 || fields.category)
+          : drillDownState.level === 1
+          ? (component.interaction?.drillDown?.dimensions?.level2 || fields.category)
+          : (component.interaction?.drillDown?.dimensions?.level3 || fields.category)
+        
         return (
-          <ReactECharts
-            option={{
-              series: [{
-                type: 'pie',
-                data: chartData.map((item: any) => ({
-                  name: item[fields.category] || '',
-                  value: item[fields.value] || 0,
-                })),
-              }],
-            }}
-            style={{ height: '100%', width: '100%' }}
-          />
+          <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+            {drillDownState.level > 0 && (
+              <Button
+                type="link"
+                icon={<ArrowLeftOutlined />}
+                onClick={handleDrillUp}
+                style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}
+              >
+                返回上级
+              </Button>
+            )}
+            <ReactECharts
+              option={{
+                series: [{
+                  type: 'pie',
+                  data: chartData.map((item: any) => ({
+                    name: item[pieDrillField] || '',
+                    value: item[fields.value] || 0,
+                  })),
+                }],
+              }}
+              style={{ height: '100%', width: '100%' }}
+              onEvents={{
+                click: (params: any) => {
+                  if (component.interaction?.drillDown?.enabled && 
+                      component.interaction.drillDown.type === 'self') {
+                    // 从图表数据中获取点击的值
+                    // params.dataIndex 是点击的数据点索引
+                    const dataIndex = params.dataIndex
+                    let clickedValue = params.name || params.data?.name || params.value
+                    
+                    // 如果可以从数据中获取，优先使用数据中的值
+                    if (dataIndex !== undefined && chartData && chartData[dataIndex]) {
+                      const clickedData = chartData[dataIndex]
+                      clickedValue = clickedData[pieDrillField] || clickedValue
+                    }
+                    
+                    console.log('饼图点击:', {
+                      params,
+                      dataIndex,
+                      clickedValue,
+                      pieDrillField,
+                      chartData: chartData?.[dataIndex],
+                    })
+                    
+                    handleDrillDownClick(clickedValue, pieDrillField, dataIndex)
+                  }
+                },
+              }}
+            />
+          </div>
         )
       
       case 'dropdown':

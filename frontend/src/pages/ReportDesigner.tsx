@@ -123,6 +123,44 @@ const ReportDesigner: React.FC = () => {
             })
             return newComp
           }
+          // 深度合并 interaction 信息，确保交互配置更新正确
+          if (updates.interaction) {
+            const newComp = {
+              ...comp,
+              ...updates,
+              interaction: {
+                ...(comp.interaction || {}),
+                ...updates.interaction,
+                // 深度合并 drillDown
+                drillDown: updates.interaction.drillDown ? {
+                  ...(comp.interaction?.drillDown || {}),
+                  ...updates.interaction.drillDown,
+                  // 深度合并 dimensions
+                  dimensions: updates.interaction.drillDown.dimensions ? {
+                    ...(comp.interaction?.drillDown?.dimensions || {}),
+                    ...updates.interaction.drillDown.dimensions,
+                  } : comp.interaction?.drillDown?.dimensions,
+                } : comp.interaction?.drillDown,
+                // 深度合并 navigation
+                navigation: updates.interaction.navigation ? {
+                  ...(comp.interaction?.navigation || {}),
+                  ...updates.interaction.navigation,
+                } : comp.interaction?.navigation,
+                // 深度合并 filter
+                filter: updates.interaction.filter ? {
+                  ...(comp.interaction?.filter || {}),
+                  ...updates.interaction.filter,
+                } : comp.interaction?.filter,
+              },
+            }
+            console.log('handleUpdateComponent: Updating interaction', {
+              id,
+              oldInteraction: comp.interaction,
+              newInteraction: newComp.interaction,
+              updates: updates.interaction,
+            })
+            return newComp
+          }
           return { ...comp, ...updates }
         }
         return comp
@@ -147,6 +185,7 @@ const ReportDesigner: React.FC = () => {
             },
             style: updatedComponent.style || {},
             props: updatedComponent.props || {},
+            interaction: updatedComponent.interaction,
           }
           setSelectedComponent(safeComponent)
         }
@@ -154,6 +193,16 @@ const ReportDesigner: React.FC = () => {
     } catch (error) {
       console.error('更新组件时出错:', error)
     }
+  }
+
+  // 处理组件值变化（用于钻取等功能）
+  const handleComponentValueChange = (componentId: string, value: any, field: string = 'value') => {
+    handleUpdateComponent(componentId, {
+      props: {
+        ...components.find(c => c.id === componentId)?.props,
+        [field]: value,
+      },
+    })
   }
 
   const handleDeleteComponent = (id: string) => {
@@ -263,6 +312,7 @@ const ReportDesigner: React.FC = () => {
                 onUpdateComponent={handleUpdateComponent}
                 onDeleteComponent={handleDeleteComponent}
                 onAddComponent={(component) => setComponents([...components, component])}
+                onComponentValueChange={handleComponentValueChange}
               />
             </ErrorBoundary>
           </Content>

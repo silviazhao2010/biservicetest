@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Radio, Modal, Tabs, Table, Alert, Tooltip } from 'antd'
+import { Card, Form, Input, Select, InputNumber, Button, message, Divider, Space, Radio, Modal, Tabs, Table, Alert, Tooltip, Switch } from 'antd'
 import { PlusOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
 import { datasetService } from '../services/datasetService'
 import { dataService } from '../services/dataService'
@@ -852,6 +852,415 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                 </Card>
               </Form.Item>
             )}
+          </>
+        )}
+
+        {/* 交互控制配置 */}
+        <Divider orientation="left" style={{ margin: '16px 0' }}>交互控制</Divider>
+        
+        {/* 钻取功能配置 */}
+        <Form.Item label="钻取功能">
+          <Switch
+            checked={component.interaction?.drillDown?.enabled || false}
+            onChange={(checked) => {
+              onUpdateComponent({
+                interaction: {
+                  ...(component.interaction || {}),
+                    drillDown: {
+                      enabled: checked,
+                      type: component.interaction?.drillDown?.type || 'self',
+                      ...(component.interaction?.drillDown || {}),
+                    },
+                },
+              })
+            }}
+          />
+          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+            启用后，点击图表元素可进行钻取操作
+          </span>
+        </Form.Item>
+        
+        {component.interaction?.drillDown?.enabled && (
+          <>
+            <Form.Item label="钻取类型">
+              <Radio.Group
+                value={component.interaction?.drillDown?.type || 'self'}
+                onChange={(e) => {
+                  const newType = e.target.value as 'self' | 'filter' | 'navigate'
+                  console.log('钻取类型变更:', { 
+                    oldType: component.interaction?.drillDown?.type, 
+                    newType,
+                    currentInteraction: component.interaction,
+                    componentId: component.id
+                  })
+                  
+                  // 构建新的drillDown配置
+                  const currentDrillDown = component.interaction?.drillDown
+                  const newDrillDown: any = {
+                    enabled: currentDrillDown?.enabled || false,
+                    type: newType,
+                  }
+                  
+                  // 保留现有的其他配置
+                  if (currentDrillDown?.targetComponentId !== undefined) {
+                    newDrillDown.targetComponentId = currentDrillDown.targetComponentId
+                  }
+                  if (currentDrillDown?.reportId !== undefined) {
+                    newDrillDown.reportId = currentDrillDown.reportId
+                  }
+                  if (currentDrillDown?.field !== undefined) {
+                    newDrillDown.field = currentDrillDown.field
+                  }
+                  
+                  // 如果切换到self类型，保留dimensions；否则清除
+                  if (newType === 'self' && currentDrillDown?.dimensions) {
+                    newDrillDown.dimensions = currentDrillDown.dimensions
+                  }
+                  
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      drillDown: newDrillDown,
+                    },
+                  })
+                }}
+              >
+                <Radio value="self">钻取本组件</Radio>
+                <Radio value="filter">过滤其他组件</Radio>
+                <Radio value="navigate">跳转到报表</Radio>
+              </Radio.Group>
+            </Form.Item>
+            
+            {/* 钻取维度配置（仅当钻取本组件时显示） */}
+            {component.interaction?.drillDown?.type === 'self' && (
+              <>
+                <Divider orientation="left" style={{ margin: '16px 0' }}>钻取维度配置</Divider>
+                <div style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>
+                  配置最多3级钻取维度，一级维度点击后下钻到二级维度，二级维度点击后下钻到三级维度
+                </div>
+                <Form.Item label="一级维度">
+                  <Select
+                    value={component.interaction.drillDown.dimensions?.level1}
+                    onChange={(value) => {
+                      onUpdateComponent({
+                        interaction: {
+                          ...(component.interaction || {}),
+                          drillDown: {
+                            enabled: component.interaction?.drillDown?.enabled || false,
+                            type: component.interaction?.drillDown?.type || 'self',
+                            ...(component.interaction?.drillDown || {}),
+                            dimensions: {
+                              ...(component.interaction?.drillDown?.dimensions || {}),
+                              level1: value,
+                            },
+                          },
+                        },
+                      })
+                    }}
+                    placeholder="选择一级维度字段"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const text = String(option?.label || option?.children || '')
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  >
+                    {availableFields.map(f => (
+                      <Select.Option key={f.name} value={f.name}>
+                        {f.name} ({f.type})
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item label="二级维度">
+                  <Select
+                    value={component.interaction.drillDown.dimensions?.level2}
+                    onChange={(value) => {
+                      onUpdateComponent({
+                        interaction: {
+                          ...(component.interaction || {}),
+                          drillDown: {
+                            enabled: component.interaction?.drillDown?.enabled || false,
+                            type: component.interaction?.drillDown?.type || 'self',
+                            ...(component.interaction?.drillDown || {}),
+                            dimensions: {
+                              ...(component.interaction?.drillDown?.dimensions || {}),
+                              level2: value,
+                            },
+                          },
+                        },
+                      })
+                    }}
+                    placeholder="选择二级维度字段（可选）"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const text = String(option?.label || option?.children || '')
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  >
+                    {availableFields.map(f => (
+                      <Select.Option key={f.name} value={f.name}>
+                        {f.name} ({f.type})
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item label="三级维度">
+                  <Select
+                    value={component.interaction.drillDown.dimensions?.level3}
+                    onChange={(value) => {
+                      onUpdateComponent({
+                        interaction: {
+                          ...(component.interaction || {}),
+                          drillDown: {
+                            enabled: component.interaction?.drillDown?.enabled || false,
+                            type: component.interaction?.drillDown?.type || 'self',
+                            ...(component.interaction?.drillDown || {}),
+                            dimensions: {
+                              ...(component.interaction?.drillDown?.dimensions || {}),
+                              level3: value,
+                            },
+                          },
+                        },
+                      })
+                    }}
+                    placeholder="选择三级维度字段（可选）"
+                    allowClear
+                    showSearch
+                    filterOption={(input, option) => {
+                      const text = String(option?.label || option?.children || '')
+                      return text.toLowerCase().includes(input.toLowerCase())
+                    }}
+                  >
+                    {availableFields.map(f => (
+                      <Select.Option key={f.name} value={f.name}>
+                        {f.name} ({f.type})
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </>
+            )}
+            
+            {component.interaction?.drillDown?.type === 'filter' && (
+              <Form.Item label="目标组件">
+                <Select
+                  value={component.interaction.drillDown.targetComponentId}
+                  onChange={(value) => {
+                    onUpdateComponent({
+                      interaction: {
+                        ...(component.interaction || {}),
+                        drillDown: {
+                          enabled: component.interaction?.drillDown?.enabled || false,
+                          type: component.interaction?.drillDown?.type || 'filter',
+                          ...(component.interaction?.drillDown || {}),
+                          targetComponentId: value,
+                        },
+                      },
+                    })
+                  }}
+                  placeholder="选择要过滤的目标组件"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = String(option?.label || option?.children || '')
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {allComponents
+                    .filter(comp => comp.id !== component.id)
+                    .map(comp => (
+                      <Select.Option key={comp.id} value={comp.id}>
+                        {comp.type} ({comp.id.substring(0, 8)})
+                      </Select.Option>
+                    ))}
+                </Select>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  点击图表元素时，将根据选中值过滤目标组件的数据
+                </div>
+              </Form.Item>
+            )}
+            
+            {component.interaction?.drillDown?.type === 'navigate' && (
+              <Form.Item label="目标报表ID">
+                <InputNumber
+                  value={component.interaction.drillDown.reportId}
+                  onChange={(value) => {
+                    onUpdateComponent({
+                      interaction: {
+                        ...(component.interaction || {}),
+                        drillDown: {
+                          enabled: component.interaction?.drillDown?.enabled || false,
+                          type: component.interaction?.drillDown?.type || 'filter',
+                          ...(component.interaction?.drillDown || {}),
+                          reportId: value || undefined,
+                        },
+                      },
+                    })
+                  }}
+                  placeholder="输入目标报表ID"
+                  min={1}
+                  style={{ width: '100%' }}
+                />
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  点击图表元素时，将跳转到指定的报表
+                </div>
+              </Form.Item>
+            )}
+            
+            {/* 钻取字段（仅当不是钻取本组件时显示） */}
+            {component.interaction?.drillDown?.type !== 'self' && (
+              <Form.Item label="钻取字段">
+                <Select
+                  value={component.interaction.drillDown.field}
+                  onChange={(value) => {
+                    onUpdateComponent({
+                      interaction: {
+                        ...(component.interaction || {}),
+                        drillDown: {
+                          enabled: component.interaction?.drillDown?.enabled || false,
+                          type: component.interaction?.drillDown?.type || 'filter',
+                          ...(component.interaction?.drillDown || {}),
+                          field: value,
+                        },
+                      },
+                    })
+                  }}
+                  placeholder="选择用于钻取的字段（可选）"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) => {
+                    const text = String(option?.label || option?.children || '')
+                    return text.toLowerCase().includes(input.toLowerCase())
+                  }}
+                >
+                  {availableFields.map(f => (
+                    <Select.Option key={f.name} value={f.name}>
+                      {f.name} ({f.type})
+                    </Select.Option>
+                  ))}
+                </Select>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                  如果未选择，将使用图表默认的选中字段
+                </div>
+              </Form.Item>
+            )}
+          </>
+        )}
+
+        {/* 跳转功能配置 */}
+        <Form.Item label="跳转功能" style={{ marginTop: '16px' }}>
+          <Switch
+            checked={component.interaction?.navigation?.enabled || false}
+            onChange={(checked) => {
+              onUpdateComponent({
+                interaction: {
+                  ...(component.interaction || {}),
+                  navigation: {
+                    enabled: checked,
+                    type: component.interaction?.navigation?.type || 'report',
+                    ...(component.interaction?.navigation || {}),
+                  },
+                },
+              })
+            }}
+          />
+          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+            启用后，点击图表元素可进行跳转操作
+          </span>
+        </Form.Item>
+        
+        {component.interaction?.navigation?.enabled && (
+          <>
+            <Form.Item label="跳转类型">
+              <Radio.Group
+                value={component.interaction.navigation.type || 'report'}
+                onChange={(e) => {
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      navigation: {
+                        enabled: component.interaction?.navigation?.enabled || false,
+                        type: e.target.value,
+                        ...(component.interaction?.navigation || {}),
+                      },
+                    },
+                  })
+                }}
+              >
+                <Radio value="report">跳转到报表</Radio>
+                <Radio value="url">跳转到URL</Radio>
+              </Radio.Group>
+            </Form.Item>
+            
+            {component.interaction.navigation.type === 'report' && (
+              <Form.Item label="目标报表ID">
+                <InputNumber
+                  value={component.interaction.navigation.reportId}
+                  onChange={(value) => {
+                    onUpdateComponent({
+                      interaction: {
+                        ...(component.interaction || {}),
+                        navigation: {
+                          enabled: component.interaction?.navigation?.enabled || false,
+                          type: component.interaction?.navigation?.type || 'report',
+                          ...(component.interaction?.navigation || {}),
+                          reportId: value || undefined,
+                        },
+                      },
+                    })
+                  }}
+                  placeholder="输入目标报表ID"
+                  min={1}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            )}
+            
+            {component.interaction.navigation.type === 'url' && (
+              <Form.Item label="目标URL">
+                <Input
+                  value={component.interaction.navigation.url}
+                  onChange={(e) => {
+                    onUpdateComponent({
+                      interaction: {
+                        ...(component.interaction || {}),
+                        navigation: {
+                          enabled: component.interaction?.navigation?.enabled || false,
+                          type: component.interaction?.navigation?.type || 'report',
+                          ...(component.interaction?.navigation || {}),
+                          url: e.target.value,
+                        },
+                      },
+                    })
+                  }}
+                  placeholder="输入目标URL，例如：https://example.com"
+                />
+              </Form.Item>
+            )}
+            
+            <Form.Item label="打开方式">
+              <Switch
+                checked={component.interaction.navigation.openInNewTab || false}
+                onChange={(checked) => {
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      navigation: {
+                        enabled: component.interaction?.navigation?.enabled || false,
+                        type: component.interaction?.navigation?.type || 'report',
+                        ...(component.interaction?.navigation || {}),
+                        openInNewTab: checked,
+                      },
+                    },
+                  })
+                }}
+              />
+              <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+                在新标签页打开
+              </span>
+            </Form.Item>
           </>
         )}
 

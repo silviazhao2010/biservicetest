@@ -11,6 +11,7 @@ interface CanvasProps {
   onDeleteComponent: (id: string) => void
   onAddComponent?: (component: ComponentConfig) => void
   getComponentValue?: (componentId: string, field?: string) => any
+  onComponentValueChange?: (componentId: string, value: any, field?: string) => void
 }
 
 const Canvas: React.FC<CanvasProps> = ({
@@ -21,6 +22,7 @@ const Canvas: React.FC<CanvasProps> = ({
   onDeleteComponent,
   onAddComponent,
   getComponentValue,
+  onComponentValueChange,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [dragPreview, setDragPreview] = useState<{ x: number, y: number, type?: ComponentConfig['type'] } | null>(null)
@@ -259,6 +261,7 @@ const Canvas: React.FC<CanvasProps> = ({
             onDelete={() => onDeleteComponent(component.id)}
             allComponents={components}
             getComponentValue={getComponentValue}
+            onComponentValueChange={onComponentValueChange}
           />
         )
       })}

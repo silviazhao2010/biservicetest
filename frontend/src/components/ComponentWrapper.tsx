@@ -13,6 +13,7 @@ interface ComponentWrapperProps {
   onDelete: () => void
   allComponents?: ComponentConfig[]
   getComponentValue?: (componentId: string, field?: string) => any
+  onComponentValueChange?: (componentId: string, value: any, field?: string) => void
 }
 
 const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
@@ -23,6 +24,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
   onDelete,
   allComponents = [],
   getComponentValue,
+  onComponentValueChange,
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
   // 使用 useRef 存储拖拽开始时的组件信息，避免在拖拽过程中被更新
@@ -137,6 +139,7 @@ const ComponentWrapper: React.FC<ComponentWrapperProps> = ({
             component={component} 
             allComponents={allComponents}
             getComponentValue={getComponentValue}
+            onComponentValueChange={onComponentValueChange}
           />
         </React.Suspense>
       </Card>
