@@ -33,38 +33,42 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
     
     const values: Record<string, any> = {}
     component.dataSource.conditionalSources.forEach(source => {
-      if (source.condition.valueType === 'component' && source.condition.componentId) {
-        const compId = source.condition.componentId
-        const field = source.condition.componentField || 'value'
-        
-        // 优先使用 getComponentValue，如果没有则从 allComponents 中获取
-        let value: any = null
-        if (getComponentValue) {
-          value = getComponentValue(compId, field)
-        } else {
-          const sourceComponent = allComponents.find(c => c.id === compId)
-          if (sourceComponent) {
-            // 对于下拉列表，value和selectedValue都指向同一个值
-            if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
-              value = (sourceComponent.props as any)?.value || null
-            } else if (sourceComponent.type === 'tree_chart') {
-              // 对于树图，支持 selectedNodePath 字段
-              if (field === 'selectedNodePath') {
-                value = (sourceComponent.props as any)?.selectedNodePath || null
-              } else if (field === 'selectedNode' || field === 'value') {
-                // 返回选中路径的最后一个节点名称
-                const path = (sourceComponent.props as any)?.selectedNodePath || []
-                value = path.length > 0 ? path[path.length - 1] : null
+      // 为了向后兼容，支持旧的 condition 格式
+      const conditions = source.conditions || (source.condition ? [source.condition] : [])
+      conditions.forEach(condition => {
+        if (condition.valueType === 'component' && condition.componentId) {
+          const compId = condition.componentId
+          const field = condition.componentField || 'value'
+          
+          // 优先使用 getComponentValue，如果没有则从 allComponents 中获取
+          let value: any = null
+          if (getComponentValue) {
+            value = getComponentValue(compId, field)
+          } else {
+            const sourceComponent = allComponents.find(c => c.id === compId)
+            if (sourceComponent) {
+              // 对于下拉列表，value和selectedValue都指向同一个值
+              if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
+                value = (sourceComponent.props as any)?.value || null
+              } else if (sourceComponent.type === 'tree_chart') {
+                // 对于树图，支持 selectedNodePath 字段
+                if (field === 'selectedNodePath') {
+                  value = (sourceComponent.props as any)?.selectedNodePath || null
+                } else if (field === 'selectedNode' || field === 'value') {
+                  // 返回选中路径的最后一个节点名称
+                  const path = (sourceComponent.props as any)?.selectedNodePath || []
+                  value = path.length > 0 ? path[path.length - 1] : null
+                } else {
+                  value = (sourceComponent.props as any)?.[field] || null
+                }
               } else {
                 value = (sourceComponent.props as any)?.[field] || null
               }
-            } else {
-              value = (sourceComponent.props as any)?.[field] || null
             }
           }
+          values[`${compId}.${field}`] = value
         }
-        values[`${compId}.${field}`] = value
-      }
+      })
     })
     return JSON.stringify(values)
   }, [component?.dataSource, component?.id, allComponents, getComponentValue])
@@ -177,44 +181,61 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
     // 遍历所有条件，找到第一个匹配的条件
     for (const source of comp.dataSource.conditionalSources) {
-      const condition = source.condition
-      let conditionValue: any
+      // 为了向后兼容，支持旧的 condition 格式
+      const conditions = source.conditions || (source.condition ? [source.condition] : [])
+      const logicOperator = source.logicOperator || 'AND'
+      
+      // 评估所有子条件
+      const conditionResults: boolean[] = []
+      for (const condition of conditions) {
+        let conditionValue: any
 
-      // 获取条件值
-      if (condition.valueType === 'static') {
-        conditionValue = condition.staticValue
-      } else if (condition.valueType === 'component' && condition.componentId) {
-        // 从其他组件获取值
-        const field = condition.componentField || 'value'
-        if (getComponentValue) {
-          conditionValue = getComponentValue(condition.componentId, field)
-        } else {
-          // 如果没有提供getComponentValue，尝试从allComponents中查找
-          const sourceComponent = allComponents.find(c => c.id === condition.componentId)
-          if (sourceComponent) {
-            // 对于下拉列表，value和selectedValue都指向同一个值
-            if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
-              conditionValue = (sourceComponent.props as any)?.value || null
-            } else if (sourceComponent.type === 'tree_chart') {
-              // 对于树图，支持 selectedNodePath 字段
-              if (field === 'selectedNodePath') {
-                conditionValue = (sourceComponent.props as any)?.selectedNodePath || null
-              } else if (field === 'selectedNode' || field === 'value') {
-                // 返回选中路径的最后一个节点名称
-                const path = (sourceComponent.props as any)?.selectedNodePath || []
-                conditionValue = path.length > 0 ? path[path.length - 1] : null
+        // 获取条件值
+        if (condition.valueType === 'static') {
+          conditionValue = condition.staticValue
+        } else if (condition.valueType === 'component' && condition.componentId) {
+          // 从其他组件获取值
+          const field = condition.componentField || 'value'
+          if (getComponentValue) {
+            conditionValue = getComponentValue(condition.componentId, field)
+          } else {
+            // 如果没有提供getComponentValue，尝试从allComponents中查找
+            const sourceComponent = allComponents.find(c => c.id === condition.componentId)
+            if (sourceComponent) {
+              // 对于下拉列表，value和selectedValue都指向同一个值
+              if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
+                conditionValue = (sourceComponent.props as any)?.value || null
+              } else if (sourceComponent.type === 'tree_chart') {
+                // 对于树图，支持 selectedNodePath 字段
+                if (field === 'selectedNodePath') {
+                  conditionValue = (sourceComponent.props as any)?.selectedNodePath || null
+                } else if (field === 'selectedNode' || field === 'value') {
+                  // 返回选中路径的最后一个节点名称
+                  const path = (sourceComponent.props as any)?.selectedNodePath || []
+                  conditionValue = path.length > 0 ? path[path.length - 1] : null
+                } else {
+                  conditionValue = (sourceComponent.props as any)?.[field] || null
+                }
               } else {
                 conditionValue = (sourceComponent.props as any)?.[field] || null
               }
-            } else {
-              conditionValue = (sourceComponent.props as any)?.[field] || null
             }
           }
         }
-      }
 
-      // 评估条件
-      if (evaluateCondition(condition, conditionValue)) {
+        // 评估单个条件
+        conditionResults.push(evaluateCondition(condition, conditionValue))
+      }
+      
+      // 根据逻辑运算符组合结果
+      let matched = false
+      if (logicOperator === 'AND') {
+        matched = conditionResults.length > 0 && conditionResults.every(result => result === true)
+      } else if (logicOperator === 'OR') {
+        matched = conditionResults.some(result => result === true)
+      }
+      
+      if (matched) {
         return {
           datasetId: source.datasetId,
           tableName: source.tableName,

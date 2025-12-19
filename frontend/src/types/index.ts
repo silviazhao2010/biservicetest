@@ -90,10 +90,13 @@ export interface DataSourceCondition {
 }
 
 export interface ConditionalDataSource {
-  condition: DataSourceCondition
+  conditions: DataSourceCondition[] // 多个条件，支持组合判断
+  logicOperator?: 'AND' | 'OR' // 逻辑运算符，默认为 AND
   datasetId: number
   tableName?: string
   sql?: string
+  // 为了向后兼容，保留 condition 字段（已废弃，使用 conditions 替代）
+  condition?: DataSourceCondition
 }
 
 export interface DataSourceConfig {
