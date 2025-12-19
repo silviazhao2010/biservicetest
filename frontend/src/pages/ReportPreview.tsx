@@ -60,6 +60,17 @@ const ReportPreview: React.FC = () => {
       return (comp.props as any)?.value || null
     }
     
+    // 对于树图，支持 selectedNodePath 字段
+    if (comp.type === 'tree_chart') {
+      if (fieldName === 'selectedNodePath') {
+        return (comp.props as any)?.selectedNodePath || null
+      } else if (fieldName === 'selectedNode' || fieldName === 'value') {
+        // 返回选中路径的最后一个节点名称
+        const path = (comp.props as any)?.selectedNodePath || []
+        return path.length > 0 ? path[path.length - 1] : null
+      }
+    }
+    
     // 对于其他组件或字段，直接返回对应字段的值
     return (comp.props as any)?.[fieldName] || null
   }, [components])

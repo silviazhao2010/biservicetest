@@ -47,6 +47,17 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
             // 对于下拉列表，value和selectedValue都指向同一个值
             if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
               value = (sourceComponent.props as any)?.value || null
+            } else if (sourceComponent.type === 'tree_chart') {
+              // 对于树图，支持 selectedNodePath 字段
+              if (field === 'selectedNodePath') {
+                value = (sourceComponent.props as any)?.selectedNodePath || null
+              } else if (field === 'selectedNode' || field === 'value') {
+                // 返回选中路径的最后一个节点名称
+                const path = (sourceComponent.props as any)?.selectedNodePath || []
+                value = path.length > 0 ? path[path.length - 1] : null
+              } else {
+                value = (sourceComponent.props as any)?.[field] || null
+              }
             } else {
               value = (sourceComponent.props as any)?.[field] || null
             }
@@ -184,6 +195,17 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
             // 对于下拉列表，value和selectedValue都指向同一个值
             if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
               conditionValue = (sourceComponent.props as any)?.value || null
+            } else if (sourceComponent.type === 'tree_chart') {
+              // 对于树图，支持 selectedNodePath 字段
+              if (field === 'selectedNodePath') {
+                conditionValue = (sourceComponent.props as any)?.selectedNodePath || null
+              } else if (field === 'selectedNode' || field === 'value') {
+                // 返回选中路径的最后一个节点名称
+                const path = (sourceComponent.props as any)?.selectedNodePath || []
+                conditionValue = path.length > 0 ? path[path.length - 1] : null
+              } else {
+                conditionValue = (sourceComponent.props as any)?.[field] || null
+              }
             } else {
               conditionValue = (sourceComponent.props as any)?.[field] || null
             }

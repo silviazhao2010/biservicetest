@@ -826,9 +826,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                               ]
                             case 'tree_chart':
                               return [
-                                { value: 'name', label: 'name (名称字段值)' },
-                                { value: 'value', label: 'value (数值字段值)' },
-                                { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                                { value: 'selectedNode', label: 'selectedNode (选中节点名称，推荐)' },
+                                { value: 'value', label: 'value (选中节点名称，与selectedNode相同)' },
+                                { value: 'selectedNodePath', label: 'selectedNodePath (完整路径数组)' },
                               ]
                             default:
                               return [
