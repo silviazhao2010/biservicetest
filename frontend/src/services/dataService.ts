@@ -15,7 +15,7 @@ export const dataService = {
 
   getTableData: async (data: {
     dataset_id: number
-    table_name: string
+    table_name?: string  // 改为可选
     filters?: Array<{
       field: string
       operator: string

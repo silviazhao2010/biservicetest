@@ -139,20 +139,18 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     })
   }
 
-  const handleTableChange = (tableName: string) => {
+  const handleTableChange = (tableName: string | undefined) => {
     if (!component?.dataSource) {
       return
     }
     
-    const table = tables.find(t => t.table_name === tableName)
-    if (table) {
-      onUpdateComponent({
-        dataSource: {
-          ...component.dataSource,
-          tableName,
-        },
-      })
-    }
+    onUpdateComponent({
+      dataSource: {
+        ...component.dataSource,
+        tableName: tableName || undefined, // 允许为空
+        fields: tableName ? {} : component.dataSource.fields, // 如果清空表名，保留字段配置
+      },
+    })
   }
 
   const handleFieldChange = (fieldKey: string, value: string) => {
@@ -205,28 +203,38 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
     
     if (component.dataSource.type === 'conditional') {
       // 条件数据源：使用默认数据源的表
-      if (component.dataSource.defaultSource?.datasetId && component.dataSource.defaultSource?.tableName) {
-        // 需要从modalTablesMap中查找，如果没有则尝试加载
-        const defaultTables = modalTablesMap[component.dataSource.defaultSource.datasetId] || []
-        let table = defaultTables.find(t => t.table_name === component.dataSource.defaultSource?.tableName)
-        // 如果没找到，尝试从tables中查找（可能已经加载过）
-        if (!table && component.dataSource.defaultSource.datasetId) {
-          const allTables = tables.filter(t => {
-            // 需要检查数据集ID，但tables可能没有datasetId信息，所以尝试加载
-            return true
-          })
-          // 如果modalTablesMap中没有，触发加载
-          if (defaultTables.length === 0) {
+      if (component.dataSource.defaultSource?.datasetId) {
+        // 如果指定了表名，使用指定的表
+        if (component.dataSource.defaultSource?.tableName) {
+          const defaultTables = modalTablesMap[component.dataSource.defaultSource.datasetId] || []
+          let table = defaultTables.find(t => t.table_name === component.dataSource.defaultSource?.tableName)
+          if (!table && defaultTables.length === 0) {
             loadModalTables(component.dataSource.defaultSource.datasetId)
           }
+          return table
         }
-        return table
+        // 如果没有指定表名，尝试从已加载的表中获取第一个表（用于字段配置）
+        const defaultTables = modalTablesMap[component.dataSource.defaultSource.datasetId] || []
+        if (defaultTables.length > 0) {
+          return defaultTables[0]
+        }
+        // 如果还没有加载，触发加载
+        if (defaultTables.length === 0) {
+          loadModalTables(component.dataSource.defaultSource.datasetId)
+        }
       }
       return null
     } else {
       // 固定数据源：使用配置的表
-      return tables.find(t => t.table_name === component.dataSource.tableName)
+      if (component.dataSource.tableName) {
+        return tables.find(t => t.table_name === component.dataSource.tableName)
+      }
+      // 如果没有指定表名，尝试从已加载的表中获取第一个表（用于字段配置）
+      if (tables.length > 0) {
+        return tables[0]
+      }
     }
+    return null
   }
 
   // 如果条件数据源模式下没有可用字段，尝试加载默认数据源的表
@@ -329,8 +337,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
         return
       }
       
-      if (!component.dataSource.defaultSource?.tableName) {
-        message.warning('请配置默认数据表')
+      if (!component.dataSource.defaultSource?.datasetId) {
+        message.warning('请配置默认数据集')
         return
       }
       
@@ -343,10 +351,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           return
         }
         
-        if (!source.tableName) {
-          message.warning(`条件 ${i + 1} 未配置数据表`)
-          return
-        }
+        // 数据表现在是可选的，不再强制要求
         
         // 为了向后兼容，支持旧的 condition 格式
         const conditions = source.conditions || (source.condition ? [source.condition] : [])
@@ -604,11 +609,12 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
         )}
 
         {!useConditionalSource && component.dataSource.datasetId && (
-          <Form.Item label="数据表">
+          <Form.Item label="数据表" tooltip="可选：如果不选择，系统将根据过滤条件中的字段自动选择包含这些字段的表">
             <Select
               value={component.dataSource.tableName}
               onChange={handleTableChange}
-              placeholder="请选择数据表"
+              placeholder="请选择数据表（可选，系统可自动选择）"
+              allowClear
             >
               {tables.map(table => (
                 <Select.Option key={table.id} value={table.table_name}>
@@ -619,9 +625,9 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           </Form.Item>
         )}
 
-        {/* 字段配置：固定数据源时显示，条件数据源时也显示（基于默认数据源的表） */}
-        {((!useConditionalSource && component.dataSource.tableName) || 
-          (useConditionalSource && component.dataSource.defaultSource?.tableName)) && 
+        {/* 字段配置：固定数据源时显示（只要有数据集即可，表名可选），条件数据源时也显示（基于默认数据源的表） */}
+        {((!useConditionalSource && component.dataSource.datasetId) || 
+          (useConditionalSource && component.dataSource.defaultSource?.datasetId)) && 
           getFieldConfig().map(field => (
           <Form.Item key={field.key} label={field.label}>
             <Select
@@ -721,11 +727,13 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                       ...component.dataSource,
                       defaultSource: {
                         ...component.dataSource.defaultSource,
-                        tableName,
+                        tableName: tableName || undefined, // 允许为空
                       } as any,
                     },
                   })
                 }}
+                placeholder="请选择数据表（可选，系统可自动选择）"
+                allowClear
                 placeholder="请选择默认数据表"
                 style={{ width: '100%' }}
               >
@@ -832,14 +840,32 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                             allowClear
                             style={{ width: '100%' }}
                           >
-                            {source.datasetId && source.tableName ? (
-                              getModalTables(source.datasetId)
-                                .find(t => t.table_name === source.tableName)
-                                ?.schema_info.fields.map((field: any) => (
-                                  <Select.Option key={field.name} value={field.name}>
-                                    {field.name} ({field.type})
-                                  </Select.Option>
-                                ))
+                            {source.datasetId ? (
+                              (() => {
+                                // 如果指定了表名，使用该表的字段；否则使用所有表的字段
+                                if (source.tableName) {
+                                  const table = getModalTables(source.datasetId).find(t => t.table_name === source.tableName)
+                                  return table?.schema_info.fields.map((field: any) => (
+                                    <Select.Option key={field.name} value={field.name}>
+                                      {field.name} ({field.type})
+                                    </Select.Option>
+                                  )) || []
+                                } else {
+                                  // 如果没有指定表名，尝试从所有表中查找包含该字段的表
+                                  const allTables = getModalTables(source.datasetId)
+                                  const allFields = new Set<string>()
+                                  allTables.forEach((table: any) => {
+                                    table.schema_info.fields.forEach((field: any) => {
+                                      allFields.add(field.name)
+                                    })
+                                  })
+                                  return Array.from(allFields).map((fieldName: string) => (
+                                    <Select.Option key={fieldName} value={fieldName}>
+                                      {fieldName}
+                                    </Select.Option>
+                                  ))
+                                }
+                              })()
                             ) : (
                               <Select.Option value="" disabled>
                                 请先选择数据表
@@ -1163,7 +1189,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                       <Select
                         value={source.tableName}
                         onChange={(tableName) => {
-                          handleUpdateConditionalSource(index, { tableName })
+                          handleUpdateConditionalSource(index, { tableName: tableName || undefined })
                           // 如果选择了数据表，检查条件字段是否在新表中存在
                           // 为了向后兼容，支持旧的 condition 格式
                           const conditions = source.conditions || (source.condition ? [source.condition] : [])
@@ -1177,6 +1203,8 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                             }
                           })
                         }}
+                        placeholder="请选择数据表（可选，系统可自动选择）"
+                        allowClear
                         placeholder="选择数据表"
                         style={{ width: '100%' }}
                       >

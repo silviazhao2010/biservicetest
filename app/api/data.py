@@ -32,12 +32,12 @@ def query_sql():
 
 @bp.route('/table-data', methods=['POST'])
 def get_table_data():
-    """获取数据表数据"""
+    """获取数据表数据，支持可选的table_name，当未指定时根据过滤条件自动选择表"""
     try:
         data = request.get_json()
         result = service.get_table_data(
             dataset_id=data['dataset_id'],
-            table_name=data['table_name'],
+            table_name=data.get('table_name'),  # 改为可选
             filters=data.get('filters', []),
             limit=data.get('limit', 100),
             offset=data.get('offset', 0),
@@ -49,6 +49,7 @@ def get_table_data():
             'total': result['total'],
             'limit': result['limit'],
             'offset': result['offset'],
+            'table_name': result.get('table_name'),  # 返回实际使用的表名
         })
     except ValueError as e:
         return jsonify({

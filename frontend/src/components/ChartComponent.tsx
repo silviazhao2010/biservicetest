@@ -149,7 +149,7 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
         tableName = component.dataSource.tableName
       }
 
-      if (!datasetId || !tableName) {
+      if (!datasetId) {
         setChartData(null)
         setLoading(false)
         return
@@ -158,9 +158,26 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       setLoading(true)
       const result = await dataService.getTableData({
         dataset_id: datasetId,
-        table_name: tableName,
+        table_name: tableName, // tableName 现在是可选的
         filters: component.dataSource.filters || [],
       })
+      
+      // 如果返回了自动选择的表名，更新组件配置，以便字段配置可以正确显示
+      if (result.table_name && !tableName && onComponentValueChange) {
+        // 更新组件配置，保存自动选择的表名
+        const updates: any = {}
+        if (component.dataSource.type === 'conditional') {
+          if (component.dataSource.defaultSource) {
+            updates.defaultSource = {
+              ...component.dataSource.defaultSource,
+              tableName: result.table_name,
+            }
+          }
+        } else {
+          updates.tableName = result.table_name
+        }
+        onComponentValueChange(component.id, updates, 'dataSource')
+      }
 
       setChartData(result.data || [])
       setError(null)
@@ -317,8 +334,8 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       tableName = component.dataSource.tableName
     }
 
-    // 如果数据源未配置，显示提示
-    if (!datasetId || !tableName) {
+    // 如果数据集未配置，显示提示（表名现在是可选的）
+    if (!datasetId) {
       return (
         <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '14px' }}>
           {component.dataSource.type === 'conditional' 
