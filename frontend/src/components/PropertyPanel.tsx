@@ -1023,6 +1023,7 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                                 conditions: newConditions.length > 0 ? newConditions : [{
                                   operator: '=',
                                   valueType: 'static',
+                                  componentValueMode: 'fixed',
                                 }],
                                 logicOperator: logicOperator,
                               }
@@ -1239,7 +1240,6 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         
                         const componentTable = getComponentDataSourceTable()
                         const componentData = getComponentDataSourceData()
-                        const componentValueMode = condition.componentValueMode || 'current'
                         
                         // 当选择组件且有数据源时，自动加载数据
                         if (sourceComponent && sourceComponent.dataSource.datasetId) {
@@ -1270,119 +1270,84 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
                         
                         return (
                           <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0' }}>
-                            <Form.Item label="值匹配方式">
+                            <Form.Item label="目标值来源">
                               <Radio.Group
-                                value={componentValueMode}
+                                value={condition.componentTargetValueSource || 'input'}
                                 onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { 
-                                  componentValueMode: e.target.value,
+                                  componentTargetValueSource: e.target.value,
                                   componentTargetValue: undefined,
-                                  componentTargetValueSource: undefined,
                                   componentTargetValueField: undefined,
                                 })}
                               >
-                                <Radio value="current">使用组件当前值（需配置静态值作为比较目标）</Radio>
-                                <Radio value="fixed">使用固定值匹配（推荐）</Radio>
+                                <Radio value="input">手动输入</Radio>
+                                <Radio value="datasource" disabled={!canUseDataSource}>
+                                  从数据源选择
+                                  {!canUseDataSource && sourceComponent?.dataSource.datasetId && !sourceComponent.dataSource.tableName && (
+                                    <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
+                                      (需要来源组件配置数据表)
+                                    </span>
+                                  )}
+                                </Radio>
                               </Radio.Group>
-                              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                                {componentValueMode === 'current' 
-                                  ? '提示：此模式下，组件的当前值将与下方配置的静态值进行比较'
-                                  : '提示：此模式下，需要配置目标值，当组件的value等于目标值时匹配此条件'}
-                              </div>
                             </Form.Item>
-                            {componentValueMode === 'current' && (
-                              <Form.Item label="比较目标值（静态值）">
+                            {condition.componentTargetValueSource === 'input' ? (
+                              <Form.Item label="目标值">
                                 <Input
-                                  value={condition.staticValue}
-                                  onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { staticValue: e.target.value })}
-                                  placeholder="输入要与组件value比较的值"
+                                  value={condition.componentTargetValue}
+                                  onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: e.target.value })}
+                                  placeholder="输入要匹配的值"
                                 />
-                                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
-                                  例如：如果组件value="产品A"时使用此数据源，则输入"产品A"
-                                </div>
                               </Form.Item>
-                            )}
-                            {componentValueMode === 'fixed' && (
-                              <>
-                                <Form.Item label="目标值来源">
-                                  <Radio.Group
-                                    value={condition.componentTargetValueSource || 'input'}
-                                    onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { 
-                                      componentTargetValueSource: e.target.value,
-                                      componentTargetValue: undefined,
-                                      componentTargetValueField: undefined,
-                                    })}
-                                  >
-                                    <Radio value="input">手动输入</Radio>
-                                    <Radio value="datasource" disabled={!canUseDataSource}>
-                                      从数据源选择
-                                      {!canUseDataSource && sourceComponent?.dataSource.datasetId && !sourceComponent.dataSource.tableName && (
-                                        <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
-                                          (需要来源组件配置数据表)
-                                        </span>
-                                      )}
-                                    </Radio>
-                                  </Radio.Group>
-                                </Form.Item>
-                                {condition.componentTargetValueSource === 'input' ? (
-                                  <Form.Item label="目标值">
-                                    <Input
-                                      value={condition.componentTargetValue}
-                                      onChange={(e) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: e.target.value })}
-                                      placeholder="输入要匹配的值"
-                                    />
+                            ) : condition.componentTargetValueSource === 'datasource' ? (
+                              availableTable ? (
+                                <>
+                                  <Form.Item label="选择字段">
+                                    <Select
+                                      value={condition.componentTargetValueField}
+                                      onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { 
+                                        componentTargetValueField: value,
+                                        componentTargetValue: undefined,
+                                      })}
+                                      placeholder="选择字段"
+                                      style={{ width: '100%' }}
+                                    >
+                                      {availableTable.schema_info.fields.map((field: any) => (
+                                        <Select.Option key={field.name} value={field.name}>
+                                          {field.name} ({field.type})
+                                        </Select.Option>
+                                      ))}
+                                    </Select>
                                   </Form.Item>
-                                ) : condition.componentTargetValueSource === 'datasource' ? (
-                                  availableTable ? (
-                                    <>
-                                      <Form.Item label="选择字段">
-                                        <Select
-                                          value={condition.componentTargetValueField}
-                                          onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { 
-                                            componentTargetValueField: value,
-                                            componentTargetValue: undefined,
-                                          })}
-                                          placeholder="选择字段"
-                                          style={{ width: '100%' }}
-                                        >
-                                          {availableTable.schema_info.fields.map((field: any) => (
-                                            <Select.Option key={field.name} value={field.name}>
-                                              {field.name} ({field.type})
-                                            </Select.Option>
-                                          ))}
-                                        </Select>
-                                      </Form.Item>
-                                      {condition.componentTargetValueField && (
-                                        <Form.Item label="选择值">
-                                          <Select
-                                            value={condition.componentTargetValue}
-                                            onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: value })}
-                                            placeholder="从数据源选择值"
-                                            showSearch
-                                            filterOption={(input, option) =>
-                                              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            style={{ width: '100%' }}
-                                          >
-                                            {Array.from(new Set(componentData.map((item: any) => {
-                                              const fieldValue = item[condition.componentTargetValueField || '']
-                                              return fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : null
-                                            }).filter((v): v is string => v !== null))).map((value: string, idx: number) => (
-                                              <Select.Option key={idx} value={value}>
-                                                {value}
-                                              </Select.Option>
-                                            ))}
-                                          </Select>
-                                        </Form.Item>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <div style={{ padding: '12px', textAlign: 'center', color: '#999', fontSize: '12px' }}>
-                                      无法获取来源组件的数据表结构，请确保来源组件已配置数据源和数据表
-                                    </div>
-                                  )
-                                ) : null}
-                              </> 
-                            )}
+                                  {condition.componentTargetValueField && (
+                                    <Form.Item label="选择值">
+                                      <Select
+                                        value={condition.componentTargetValue}
+                                        onChange={(value) => handleUpdateSubCondition(index, conditionIndex, { componentTargetValue: value })}
+                                        placeholder="从数据源选择值"
+                                        showSearch
+                                        filterOption={(input, option) =>
+                                          String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                        style={{ width: '100%' }}
+                                      >
+                                        {Array.from(new Set(componentData.map((item: any) => {
+                                          const fieldValue = item[condition.componentTargetValueField || '']
+                                          return fieldValue !== undefined && fieldValue !== null ? String(fieldValue) : null
+                                        }).filter((v): v is string => v !== null))).map((value: string, idx: number) => (
+                                          <Select.Option key={idx} value={value}>
+                                            {value}
+                                          </Select.Option>
+                                        ))}
+                                      </Select>
+                                    </Form.Item>
+                                  )}
+                                </>
+                              ) : (
+                                <div style={{ padding: '12px', textAlign: 'center', color: '#999', fontSize: '12px' }}>
+                                  无法获取来源组件的数据表结构，请确保来源组件已配置数据源和数据表
+                                </div>
+                              )
+                            ) : null}
                           </div>
                         )
                       })()}
