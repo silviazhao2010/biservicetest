@@ -167,46 +167,69 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
       setLoading(true)
       
+      // 从 component.props 获取最新的 drillDownState（确保使用最新值，而不是闭包中的旧值）
+      const currentDrillDownState = (component.props as any)?.drillDownState || { level: 0, values: {} }
+      
       // 构建过滤条件：包括数据源配置的过滤器和钻取过滤器
       const filters = [...(component.dataSource.filters || [])]
       
       // 如果启用了钻取本组件功能，添加钻取过滤器
       if (component.interaction?.drillDown?.enabled && 
           component.interaction.drillDown.type === 'self' &&
-          drillDownState.level > 0) {
+          currentDrillDownState && currentDrillDownState.level > 0) {
         const dimensions = component.interaction.drillDown.dimensions
-        if (dimensions) {
+        if (dimensions && currentDrillDownState.values) {
           // 根据当前钻取层级添加过滤条件
           // 当在1级时，使用level1的值过滤（显示该一级维度值下的二级维度数据）
           // 当在2级时，使用level1和level2的值过滤（显示该一级和二级维度值下的三级维度数据）
           // 当在3级时，使用level1、level2和level3的值过滤
           
+          console.log('构建钻取过滤条件:', {
+            currentDrillDownState,
+            dimensions,
+            level: currentDrillDownState.level,
+            values: currentDrillDownState.values,
+            hasLevel1: !!currentDrillDownState.values.level1,
+            hasLevel2: !!currentDrillDownState.values.level2,
+            hasLevel3: !!currentDrillDownState.values.level3,
+          })
+          
           // 一级维度过滤（当level >= 1时，必须过滤一级维度）
-          if (drillDownState.level >= 1 && drillDownState.values.level1 && dimensions.level1) {
-            filters.push({
+          if (currentDrillDownState.level >= 1 && currentDrillDownState.values.level1 && dimensions.level1) {
+            const filter1 = {
               field: dimensions.level1,
-              operator: '=',
-              value: drillDownState.values.level1,
-            })
+              operator: '=' as const,
+              value: currentDrillDownState.values.level1,
+            }
+            filters.push(filter1)
+            console.log('添加一级维度过滤:', filter1)
           }
           
           // 二级维度过滤（当level >= 2时，必须过滤二级维度）
-          if (drillDownState.level >= 2 && drillDownState.values.level2 && dimensions.level2) {
-            filters.push({
+          if (currentDrillDownState.level >= 2 && currentDrillDownState.values.level2 && dimensions.level2) {
+            const filter2 = {
               field: dimensions.level2,
-              operator: '=',
-              value: drillDownState.values.level2,
-            })
+              operator: '=' as const,
+              value: currentDrillDownState.values.level2,
+            }
+            filters.push(filter2)
+            console.log('添加二级维度过滤:', filter2)
           }
           
           // 三级维度过滤（当level >= 3时，必须过滤三级维度）
-          if (drillDownState.level >= 3 && drillDownState.values.level3 && dimensions.level3) {
-            filters.push({
+          if (currentDrillDownState.level >= 3 && currentDrillDownState.values.level3 && dimensions.level3) {
+            const filter3 = {
               field: dimensions.level3,
-              operator: '=',
-              value: drillDownState.values.level3,
-            })
+              operator: '=' as const,
+              value: currentDrillDownState.values.level3,
+            }
+            filters.push(filter3)
+            console.log('添加三级维度过滤:', filter3)
           }
+          
+          console.log('最终过滤条件:', filters)
+        } else {
+          console.warn('钻取配置不完整:', { dimensions, currentDrillDownState })
         }
       }
       
