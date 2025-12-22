@@ -79,6 +79,14 @@ export interface InteractionConfig {
     targetComponentIds?: string[] // 目标组件ID列表
     field?: string // 用于过滤的字段
   }
+  // 联动配置（被联动组件使用）
+  linkage?: {
+    enabled: boolean
+    sourceComponentId?: string // 联动组件ID（提供值的组件）
+    sourceField?: string // 联动组件的字段（如 value, selectedValue 等）
+    targetField?: string // 被联动组件的过滤字段（数据库字段名）
+    operator?: '=' | '!=' | '>' | '<' | '>=' | '<=' | 'LIKE' | 'IN' // 操作符
+  }
 }
 
 export interface ComponentConfig {

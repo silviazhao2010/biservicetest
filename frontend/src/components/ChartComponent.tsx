@@ -31,51 +31,86 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
 
   // 获取所有依赖的组件值，用于监听变化
   const dependentValuesKey = useMemo(() => {
-    if (!component?.dataSource || component.dataSource.type !== 'conditional' || !component.dataSource.conditionalSources) {
-      return ''
-    }
-    
     const values: Record<string, any> = {}
-    component.dataSource.conditionalSources.forEach(source => {
-      // 为了向后兼容，支持旧的 condition 格式
-      const conditions = source.conditions || (source.condition ? [source.condition] : [])
-      conditions.forEach(condition => {
-        if (condition.valueType === 'component' && condition.componentId) {
-          const compId = condition.componentId
-          const field = condition.componentField || 'value'
-          
-          // 优先使用 getComponentValue，如果没有则从 allComponents 中获取
-          let value: any = null
-          if (getComponentValue) {
-            value = getComponentValue(compId, field)
-          } else {
-            const sourceComponent = allComponents.find(c => c.id === compId)
-            if (sourceComponent) {
-              // 对于下拉列表，value和selectedValue都指向同一个值
-              if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
-                value = (sourceComponent.props as any)?.value || null
-              } else if (sourceComponent.type === 'tree_chart') {
-                // 对于树图，支持 selectedNodePath 字段
-                if (field === 'selectedNodePath') {
-                  value = (sourceComponent.props as any)?.selectedNodePath || null
-                } else if (field === 'selectedNode' || field === 'value') {
-                  // 返回选中路径的最后一个节点名称
-                  const path = (sourceComponent.props as any)?.selectedNodePath || []
-                  value = path.length > 0 ? path[path.length - 1] : null
+    
+    // 监听条件数据源中的组件值
+    if (component?.dataSource && component.dataSource.type === 'conditional' && component.dataSource.conditionalSources) {
+      component.dataSource.conditionalSources.forEach(source => {
+        // 为了向后兼容，支持旧的 condition 格式
+        const conditions = source.conditions || (source.condition ? [source.condition] : [])
+        conditions.forEach(condition => {
+          if (condition.valueType === 'component' && condition.componentId) {
+            const compId = condition.componentId
+            const field = condition.componentField || 'value'
+            
+            // 优先使用 getComponentValue，如果没有则从 allComponents 中获取
+            let value: any = null
+            if (getComponentValue) {
+              value = getComponentValue(compId, field)
+            } else {
+              const sourceComponent = allComponents.find(c => c.id === compId)
+              if (sourceComponent) {
+                // 对于下拉列表，value和selectedValue都指向同一个值
+                if (sourceComponent.type === 'dropdown' && (field === 'value' || field === 'selectedValue')) {
+                  value = (sourceComponent.props as any)?.value || null
+                } else if (sourceComponent.type === 'tree_chart') {
+                  // 对于树图，支持 selectedNodePath 字段
+                  if (field === 'selectedNodePath') {
+                    value = (sourceComponent.props as any)?.selectedNodePath || null
+                  } else if (field === 'selectedNode' || field === 'value') {
+                    // 返回选中路径的最后一个节点名称
+                    const path = (sourceComponent.props as any)?.selectedNodePath || []
+                    value = path.length > 0 ? path[path.length - 1] : null
+                  } else {
+                    value = (sourceComponent.props as any)?.[field] || null
+                  }
                 } else {
                   value = (sourceComponent.props as any)?.[field] || null
                 }
-              } else {
-                value = (sourceComponent.props as any)?.[field] || null
               }
             }
+            values[`${compId}.${field}`] = value
           }
-          values[`${compId}.${field}`] = value
-        }
+        })
       })
-    })
+    }
+    
+    // 监听联动组件的值
+    if (component?.interaction?.linkage?.enabled && 
+        component.interaction.linkage.sourceComponentId) {
+      const sourceComponentId = component.interaction.linkage.sourceComponentId
+      const sourceField = component.interaction.linkage.sourceField || 'value'
+      
+      let linkageValue: any = null
+      if (getComponentValue) {
+        linkageValue = getComponentValue(sourceComponentId, sourceField)
+      } else {
+        const sourceComponent = allComponents.find(c => c.id === sourceComponentId)
+        if (sourceComponent) {
+          // 对于下拉列表，value和selectedValue都指向同一个值
+          if (sourceComponent.type === 'dropdown' && (sourceField === 'value' || sourceField === 'selectedValue')) {
+            linkageValue = (sourceComponent.props as any)?.value || null
+          } else if (sourceComponent.type === 'tree_chart') {
+            // 对于树图，支持 selectedNodePath 字段
+            if (sourceField === 'selectedNodePath') {
+              linkageValue = (sourceComponent.props as any)?.selectedNodePath || null
+            } else if (sourceField === 'selectedNode' || sourceField === 'value') {
+              // 返回选中路径的最后一个节点名称
+              const path = (sourceComponent.props as any)?.selectedNodePath || []
+              linkageValue = path.length > 0 ? path[path.length - 1] : null
+            } else {
+              linkageValue = (sourceComponent.props as any)?.[sourceField] || null
+            }
+          } else {
+            linkageValue = (sourceComponent.props as any)?.[sourceField] || null
+          }
+        }
+      }
+      values[`linkage.${sourceComponentId}.${sourceField}`] = linkageValue
+    }
+    
     return JSON.stringify(values)
-  }, [component?.dataSource, component?.id, allComponents, getComponentValue])
+  }, [component?.dataSource, component?.interaction?.linkage, component?.id, allComponents, getComponentValue])
 
   // 使用 useRef 来跟踪组件数据源，避免不必要的重新加载
   const prevDataSourceRef = useRef<string>('')
@@ -172,6 +207,62 @@ const ChartComponent: React.FC<ChartComponentProps> = ({ component, allComponent
       
       // 构建过滤条件：包括数据源配置的过滤器和钻取过滤器
       const filters = [...(component.dataSource.filters || [])]
+      
+      // 如果启用了联动功能，添加联动过滤器
+      if (component.interaction?.linkage?.enabled && 
+          component.interaction.linkage.sourceComponentId &&
+          component.interaction.linkage.targetField) {
+        // 获取联动组件的值
+        const sourceComponentId = component.interaction.linkage.sourceComponentId
+        const sourceField = component.interaction.linkage.sourceField || 'value'
+        let linkageValue: any = null
+        
+        if (getComponentValue) {
+          linkageValue = getComponentValue(sourceComponentId, sourceField)
+        } else {
+          // 如果没有提供getComponentValue，尝试从allComponents中查找
+          const sourceComponent = allComponents.find(c => c.id === sourceComponentId)
+          if (sourceComponent) {
+            // 对于下拉列表，value和selectedValue都指向同一个值
+            if (sourceComponent.type === 'dropdown' && (sourceField === 'value' || sourceField === 'selectedValue')) {
+              linkageValue = (sourceComponent.props as any)?.value || null
+            } else if (sourceComponent.type === 'tree_chart') {
+              // 对于树图，支持 selectedNodePath 字段
+              if (sourceField === 'selectedNodePath') {
+                linkageValue = (sourceComponent.props as any)?.selectedNodePath || null
+              } else if (sourceField === 'selectedNode' || sourceField === 'value') {
+                // 返回选中路径的最后一个节点名称
+                const path = (sourceComponent.props as any)?.selectedNodePath || []
+                linkageValue = path.length > 0 ? path[path.length - 1] : null
+              } else {
+                linkageValue = (sourceComponent.props as any)?.[sourceField] || null
+              }
+            } else {
+              linkageValue = (sourceComponent.props as any)?.[sourceField] || null
+            }
+          }
+        }
+        
+        // 如果获取到了联动值，添加过滤条件
+        if (linkageValue !== null && linkageValue !== undefined && linkageValue !== '') {
+          const operator = component.interaction.linkage.operator || '='
+          const targetField = component.interaction.linkage.targetField
+          
+          filters.push({
+            field: targetField,
+            operator: operator,
+            value: linkageValue,
+          })
+          
+          console.log('添加联动过滤条件:', {
+            sourceComponentId,
+            sourceField,
+            targetField,
+            operator,
+            linkageValue,
+          })
+        }
+      }
       
       // 如果启用了钻取本组件功能，添加钻取过滤器
       if (component.interaction?.drillDown?.enabled && 

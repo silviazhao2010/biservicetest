@@ -1149,6 +1149,216 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ component, allComponents 
           </>
         )}
 
+        {/* 联动功能配置 */}
+        <Form.Item label="联动功能" style={{ marginTop: '16px' }}>
+          <Switch
+            checked={component.interaction?.linkage?.enabled || false}
+            onChange={(checked) => {
+              onUpdateComponent({
+                interaction: {
+                  ...(component.interaction || {}),
+                  linkage: {
+                    enabled: checked,
+                    sourceComponentId: component.interaction?.linkage?.sourceComponentId,
+                    sourceField: component.interaction?.linkage?.sourceField || 'value',
+                    targetField: component.interaction?.linkage?.targetField,
+                    operator: component.interaction?.linkage?.operator || '=',
+                  },
+                },
+              })
+            }}
+          />
+          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+            启用后，本组件的数据将根据联动组件的值进行过滤
+          </span>
+        </Form.Item>
+        
+        {component.interaction?.linkage?.enabled && (
+          <>
+            <Form.Item label="联动组件">
+              <Select
+                value={component.interaction?.linkage?.sourceComponentId}
+                onChange={(value) => {
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      linkage: {
+                        enabled: component.interaction?.linkage?.enabled || false,
+                        sourceComponentId: value,
+                        sourceField: component.interaction?.linkage?.sourceField || 'value',
+                        targetField: component.interaction?.linkage?.targetField,
+                        operator: component.interaction?.linkage?.operator || '=',
+                      },
+                    },
+                  })
+                }}
+                placeholder="选择联动组件（提供值的组件）"
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = String(option?.label || option?.children || '')
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+              >
+                {allComponents
+                  .filter(comp => comp.id !== component.id)
+                  .map(comp => (
+                    <Select.Option key={comp.id} value={comp.id}>
+                      {comp.type} ({comp.id.substring(0, 8)})
+                    </Select.Option>
+                  ))}
+              </Select>
+              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                选择提供过滤值的组件
+              </div>
+            </Form.Item>
+            
+            {component.interaction?.linkage?.sourceComponentId && (() => {
+              const sourceComponent = allComponents.find(c => c.id === component.interaction?.linkage?.sourceComponentId)
+              const getComponentFields = (componentType?: string): Array<{ value: string, label: string }> => {
+                switch (componentType) {
+                  case 'dropdown':
+                    return [
+                      { value: 'value', label: 'value (当前选中值)' },
+                      { value: 'selectedValue', label: 'selectedValue (选中值)' },
+                    ]
+                  case 'text_input':
+                    return [
+                      { value: 'value', label: 'value (输入值)' },
+                    ]
+                  case 'line_chart':
+                    return [
+                      { value: 'x', label: 'x (X轴字段值)' },
+                      { value: 'y', label: 'y (Y轴字段值)' },
+                      { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                    ]
+                  case 'pie_chart':
+                    return [
+                      { value: 'category', label: 'category (分类字段值)' },
+                      { value: 'value', label: 'value (数值字段值)' },
+                      { value: 'selectedData', label: 'selectedData (选中的数据)' },
+                    ]
+                  case 'tree_chart':
+                    return [
+                      { value: 'selectedNode', label: 'selectedNode (选中节点名称，推荐)' },
+                      { value: 'value', label: 'value (选中节点名称，与selectedNode相同)' },
+                      { value: 'selectedNodePath', label: 'selectedNodePath (完整路径数组)' },
+                    ]
+                  default:
+                    return [
+                      { value: 'value', label: 'value (默认值)' },
+                    ]
+                }
+              }
+              const availableFields = getComponentFields(sourceComponent?.type)
+              
+              return (
+                <>
+                  <Form.Item label="联动组件字段">
+                    <Select
+                      value={component.interaction?.linkage?.sourceField}
+                      onChange={(value) => {
+                        onUpdateComponent({
+                          interaction: {
+                            ...(component.interaction || {}),
+                            linkage: {
+                              enabled: component.interaction?.linkage?.enabled || false,
+                              sourceComponentId: component.interaction?.linkage?.sourceComponentId,
+                              sourceField: value || 'value',
+                              targetField: component.interaction?.linkage?.targetField,
+                              operator: component.interaction?.linkage?.operator || '=',
+                            },
+                          },
+                        })
+                      }}
+                      placeholder="选择联动组件的字段"
+                      style={{ width: '100%' }}
+                    >
+                      {availableFields.map(field => (
+                        <Select.Option key={field.value} value={field.value}>
+                          {field.label}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                      选择从联动组件获取值的字段
+                    </div>
+                  </Form.Item>
+                </>
+              )
+            })()}
+            
+            <Form.Item label="过滤字段">
+              <Select
+                value={component.interaction?.linkage?.targetField}
+                onChange={(value) => {
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      linkage: {
+                        enabled: component.interaction?.linkage?.enabled || false,
+                        sourceComponentId: component.interaction?.linkage?.sourceComponentId,
+                        sourceField: component.interaction?.linkage?.sourceField || 'value',
+                        targetField: value || undefined,
+                        operator: component.interaction?.linkage?.operator || '=',
+                      },
+                    },
+                  })
+                }}
+                placeholder="选择数据表中的过滤字段"
+                allowClear
+                showSearch
+                filterOption={(input, option) => {
+                  const text = String(option?.label || option?.children || '')
+                  return text.toLowerCase().includes(input.toLowerCase())
+                }}
+              >
+                {availableFields.map(f => (
+                  <Select.Option key={f.name} value={f.name}>
+                    {f.name} ({f.type})
+                  </Select.Option>
+                ))}
+              </Select>
+              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                选择本组件数据源中用于过滤的字段
+              </div>
+            </Form.Item>
+            
+            <Form.Item label="操作符">
+              <Select
+                value={component.interaction?.linkage?.operator || '='}
+                onChange={(value) => {
+                  onUpdateComponent({
+                    interaction: {
+                      ...(component.interaction || {}),
+                      linkage: {
+                        enabled: component.interaction?.linkage?.enabled || false,
+                        sourceComponentId: component.interaction?.linkage?.sourceComponentId,
+                        sourceField: component.interaction?.linkage?.sourceField || 'value',
+                        targetField: component.interaction?.linkage?.targetField,
+                        operator: value,
+                      },
+                    },
+                  })
+                }}
+                style={{ width: '100%' }}
+              >
+                <Select.Option value="=">=</Select.Option>
+                <Select.Option value="!=">!=</Select.Option>
+                <Select.Option value=">">&gt;</Select.Option>
+                <Select.Option value="<">&lt;</Select.Option>
+                <Select.Option value=">=">&gt;=</Select.Option>
+                <Select.Option value="<=">&lt;=</Select.Option>
+                <Select.Option value="LIKE">LIKE</Select.Option>
+                <Select.Option value="IN">IN</Select.Option>
+              </Select>
+              <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                选择过滤条件的操作符
+              </div>
+            </Form.Item>
+          </>
+        )}
+
         {/* 跳转功能配置 */}
         <Form.Item label="跳转功能" style={{ marginTop: '16px' }}>
           <Switch
